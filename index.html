@@ -643,9 +643,15 @@
     syncBadge.textContent = text;
   }
 
+  function currentCurrency(){
+    const el = document.getElementById('currency');
+    const c = (el && el.textContent || '').trim();
+    return c || 'TWD';
+  }
+
   function fmt(n){
     n = Math.round(n + Number.EPSILON);
-    return 'TWD ' + n.toLocaleString('en-US');
+    return currentCurrency() + ' ' + n.toLocaleString('en-US');
   }
 
   function localLoad(){
@@ -954,6 +960,8 @@
   document.getElementById('addRowBtn').addEventListener('click', () => addRow());
   document.getElementById('addRowBtn2').addEventListener('click', () => addRow());
   document.getElementById('printBtn').addEventListener('click', () => window.print());
+  // 幣別變更時，重新格式化所有金額
+  document.getElementById('currency').addEventListener('input', recalc);
   document.getElementById('newQuoteBtn').addEventListener('click', () => {
     if(confirm('確定要清空目前這張報價單的品項與客戶資訊嗎？（已儲存的常用料號清單不會被刪除）')){
       document.querySelectorAll('.meta-val input').forEach(i=>i.value='');

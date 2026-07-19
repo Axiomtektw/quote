@@ -1,0 +1,1135 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>報價單產生器</title>
+<style>
+  /* Palette sampled directly from the AXIOMTEK PDF quotation:
+     brand maroon #74043c (logo), near-black ink, slate-gray secondary text,
+     pale blue-white tint for label cells, soft blue-gray grid lines. */
+  :root{
+    --brand:#74043c;
+    --brand-soft:#a13d63;
+    --paper:#ffffff;
+    --canvas:#eef0f3;
+    --ink:#1c1c1e;
+    --ink-soft:#57657a;
+    --ink-faint:#8b91a0;
+    --line:#c9d0d8;
+    --line-soft:#e2e6ea;
+    --label-bg:#f7fbfe;
+    --cost-bg:#fff9ec;
+    --cost-line:#e8d9ad;
+    --gp-bg:#eef8f1;
+    --gp-line:#bfe0cf;
+    --ok:#2f7d5f;
+    --font-ui: "Noto Sans TC","PingFang TC","Microsoft JhengHei",-apple-system,BlinkMacSystemFont,sans-serif;
+    --font-num: "Roboto Mono","SFMono-Regular",Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--canvas);
+    font-family:var(--font-ui);
+    color:var(--ink);
+    padding:32px 16px 80px;
+    -webkit-font-smoothing:antialiased;
+  }
+  .toolbar{
+    max-width:1040px;
+    margin:0 auto 16px;
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    align-items:center;
+    justify-content:space-between;
+  }
+  .toolbar .left{display:flex; gap:8px; flex-wrap:wrap;}
+  button{
+    font-family:var(--font-ui);
+    font-size:13px;
+    border-radius:6px;
+    border:1px solid var(--line);
+    background:var(--paper);
+    color:var(--ink);
+    padding:8px 14px;
+    cursor:pointer;
+    transition:all .15s ease;
+  }
+  button:hover{border-color:var(--brand); color:var(--brand);}
+  button.primary{background:var(--brand); color:#fff; border-color:var(--brand);}
+  button.primary:hover{background:#5c0330; color:#fff;}
+  button.danger{color:#a13232; border-color:#eccaca; background:#fdf6f6;}
+  button.danger:hover{background:#f8e4e4; border-color:#e0a0a0;}
+  button.ghost{background:transparent;}
+  button.small{padding:4px 9px; font-size:12px; border-radius:5px;}
+
+  .sheet{
+    max-width:1040px;
+    margin:0 auto;
+    background:var(--paper);
+    box-shadow:0 1px 3px rgba(20,30,50,.08), 0 10px 30px rgba(20,30,50,.06);
+    border-radius:4px;
+    overflow:hidden;
+    border:1px solid var(--line-soft);
+  }
+  .sheet-head{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    padding:30px 40px 18px;
+    border-bottom:2px solid var(--ink);
+  }
+  .brand{display:flex; align-items:center; gap:12px;}
+  .brand-mark{
+    width:46px;height:46px;border-radius:9px;
+    background:var(--brand);
+    display:flex;align-items:center;justify-content:center;
+    color:#fff; font-weight:700; font-size:16px; letter-spacing:.5px;
+  }
+  .brand-name-en{font-size:19px; font-weight:800; color:var(--brand); letter-spacing:.5px;}
+  .brand-tag{font-size:10px; color:var(--ink-faint); letter-spacing:2px; margin-top:2px;}
+  .company-addr{
+    text-align:right;
+    font-size:11.5px;
+    color:var(--ink-soft);
+    line-height:1.75;
+  }
+  .company-addr .company-name{
+    font-size:13.5px; font-weight:700; color:var(--ink); margin-bottom:2px;
+  }
+  .company-addr [contenteditable]{outline:none;}
+  .company-addr [contenteditable]:hover{background:var(--line-soft); border-radius:3px;}
+
+  .title-row{
+    text-align:center;
+    padding:20px 0 6px;
+  }
+  .title-row h1{
+    font-size:25px;
+    letter-spacing:16px;
+    margin:0;
+    color:var(--ink);
+    font-weight:700;
+    padding-left:16px;
+  }
+
+  .meta{padding:14px 40px 4px;}
+  .meta table{width:100%; border-collapse:collapse;}
+  .meta td{padding:0; vertical-align:middle;}
+  .meta-label{
+    width:100px;
+    font-size:12px;
+    color:var(--ink-soft);
+    background:var(--label-bg);
+    padding:8px 10px;
+    border:1px solid var(--line);
+    font-weight:600;
+  }
+  .meta-val{
+    border:1px solid var(--line);
+    padding:2px 8px;
+    width:calc(50% - 100px);
+    background:var(--paper);
+  }
+  .meta-val input{
+    width:100%;
+    border:none;
+    background:transparent;
+    font-family:var(--font-ui);
+    font-size:13px;
+    color:var(--ink);
+    padding:6px 2px;
+    outline:none;
+  }
+  .meta-val input:focus{background:#fbf6ea;}
+
+  .notice{
+    padding:16px 40px 4px;
+    font-size:11.5px;
+    line-height:1.85;
+    color:var(--ink);
+  }
+  .notice strong{color:var(--ink);}
+  .notice-block{outline:none; padding:2px 4px; border-radius:4px;}
+  .notice-block:hover{background:var(--line-soft);}
+  .currency-tag{
+    text-align:right;
+    padding:10px 40px 0;
+    font-size:12px;
+    color:var(--ink);
+    font-weight:600;
+  }
+
+  .items-wrap{padding:8px 40px 0;}
+  table.items{
+    width:100%;
+    border-collapse:collapse;
+    font-size:12.5px;
+  }
+  table.items thead th{
+    background:var(--paper);
+    color:var(--ink);
+    font-weight:700;
+    font-size:11.5px;
+    padding:9px 6px;
+    text-align:center;
+    border:1px solid var(--ink-faint);
+    border-bottom:2px solid var(--ink);
+  }
+  table.items thead th.cost-col{background:var(--cost-bg); border-bottom:2px solid var(--brand);}
+  table.items thead th.gp-col{background:var(--gp-bg); border-bottom:2px solid var(--ok);}
+  table.items tbody td{
+    border:1px solid var(--line);
+    padding:5px 6px;
+    text-align:center;
+    vertical-align:middle;
+  }
+  table.items tbody tr:nth-child(even){background:#fafbfc;}
+  table.items input{
+    width:100%;
+    border:none;
+    background:transparent;
+    font-family:var(--font-ui);
+    font-size:12.5px;
+    text-align:center;
+    padding:5px 2px;
+    outline:none;
+    border-radius:4px;
+  }
+  table.items input:focus{background:#fbf6ea;}
+  table.items td.name-cell input, table.items td.spec-cell input{text-align:left;}
+  table.items input[type=number]{font-family:var(--font-num);}
+  td.money{font-family:var(--font-num); text-align:right !important; padding-right:10px !important;}
+  td.rowidx{color:var(--ink-faint); font-family:var(--font-num);}
+  td.cost-col{background:var(--cost-bg);}
+  td.cost-col input{color:#6b5a1e;}
+  td.gp-col{background:var(--gp-bg); font-family:var(--font-num); color:#245c40; font-size:11.5px;}
+  td.gp-col .gp-pct{display:block; font-weight:700;}
+  td.gp-col .gp-amt{display:block; font-size:10.5px; color:#4c7c65;}
+  td.gp-col.gp-neg{background:#fdecec; color:#a13232;}
+  td.gp-col.gp-neg .gp-amt{color:#a13232;}
+  .row-del{
+    border:none; background:transparent; color:#c98080; font-size:15px; cursor:pointer; padding:2px 6px;
+  }
+  .row-del:hover{color:#a13232;}
+  .add-row-btn{margin:10px 0 4px;}
+
+  .cost-flag{
+    display:inline-block; font-size:10px; font-weight:700; color:#8a6d10;
+    background:#fff3d0; border:1px solid var(--cost-line); border-radius:9px;
+    padding:1px 8px; margin-left:8px; vertical-align:middle;
+  }
+
+  .totals{
+    padding:14px 40px 0;
+    display:flex;
+    justify-content:flex-end;
+    gap:24px;
+    flex-wrap:wrap;
+  }
+  .totals table{border-collapse:collapse; width:280px;}
+  .totals td{padding:7px 12px; font-size:13px; border:1px solid var(--line);}
+  .totals td.t-label{background:var(--label-bg); color:var(--ink-soft); width:110px; font-weight:600;}
+  .totals td.t-val{text-align:right; font-family:var(--font-num);}
+  .totals tr.grand td{font-size:15px; font-weight:700; color:var(--brand); border-top:2px solid var(--ink);}
+
+  .cost-summary{
+    width:280px; border-collapse:collapse; background:var(--cost-bg);
+    border:1px dashed var(--cost-line); border-radius:6px; overflow:hidden;
+  }
+  .cost-summary td{padding:7px 12px; font-size:12.5px; border-bottom:1px dashed var(--cost-line);}
+  .cost-summary tr:last-child td{border-bottom:none;}
+  .cost-summary td.t-label{color:#6b5a1e; font-weight:600; width:110px;}
+  .cost-summary td.t-val{text-align:right; font-family:var(--font-num); color:#4a3d0f;}
+  .cost-summary tr.grand td{font-weight:700; font-size:13.5px;}
+  .cost-caption{
+    font-size:10.5px; color:#8a6d10; text-align:right; width:280px; margin-top:4px;
+  }
+
+  .remark{
+    margin:18px 40px 0;
+    border:1px solid var(--line);
+    border-radius:4px;
+    overflow:hidden;
+  }
+  .remark-label{
+    background:var(--label-bg); font-size:12px; color:var(--ink-soft); font-weight:600;
+    padding:6px 10px; border-bottom:1px solid var(--line);
+  }
+  .remark textarea{
+    width:100%; border:none; resize:vertical; min-height:44px;
+    font-family:var(--font-ui); font-size:12.5px; padding:8px 10px; outline:none;
+  }
+  .remark textarea:focus{background:#fbf6ea;}
+
+  .footer-note{
+    margin:22px 40px 0;
+    font-size:11.5px;
+    color:var(--ink);
+    font-weight:700;
+    border-top:1px dashed var(--line);
+    padding-top:12px;
+  }
+
+  .signoff{
+    display:flex;
+    justify-content:space-between;
+    padding:26px 40px 36px;
+    gap:30px;
+  }
+  .sign-col{flex:1;}
+  .sign-col .cap{font-size:11.5px; font-weight:700; color:var(--ink); margin-bottom:26px;}
+  .sign-line{border-top:1px solid var(--ink-faint); padding-top:6px; font-size:10.5px; color:var(--ink-faint);}
+  .sign-col.right{text-align:right;}
+  .stamp{
+    display:inline-block; margin-top:4px; width:96px; height:96px; border-radius:50%;
+    border:2px solid var(--brand); color:var(--brand); opacity:.45;
+    display:flex; align-items:center; justify-content:center; text-align:center;
+    font-size:9.5px; line-height:1.4; transform:rotate(-8deg); float:right;
+  }
+
+  .catalog-panel{
+    max-width:1040px; margin:20px auto 0; background:var(--paper);
+    border-radius:8px; box-shadow:0 1px 3px rgba(20,30,50,.06);
+    overflow:hidden;
+  }
+  .catalog-head{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 22px; cursor:pointer; user-select:none;
+    border-bottom:1px solid var(--line-soft);
+  }
+  .catalog-head h2{font-size:13.5px; margin:0; color:var(--brand);}
+  .catalog-head .hint{font-size:11.5px; color:var(--ink-faint); font-weight:400; margin-left:8px;}
+  .catalog-body{padding:14px 22px 20px; display:none;}
+  .catalog-body.open{display:block;}
+  table.catalog{width:100%; border-collapse:collapse; font-size:12px;}
+  table.catalog th{
+    text-align:left; padding:6px 8px; color:var(--ink-soft); border-bottom:1px solid var(--line);
+    font-weight:600; font-size:11.5px;
+  }
+  table.catalog td{padding:6px 8px; border-bottom:1px solid var(--line-soft); font-family:var(--font-num);}
+  table.catalog td.name-td, table.catalog td.spec-td{font-family:var(--font-ui);}
+  .empty-cat{color:var(--ink-faint); font-size:12px; padding:12px 4px;}
+
+  .modal-overlay{
+    display:none; position:fixed; inset:0; background:rgba(20,25,35,.45);
+    z-index:1000; align-items:center; justify-content:center; padding:20px;
+  }
+  .modal-overlay.open{display:flex;}
+  .modal-box{
+    background:var(--paper); border-radius:10px; max-width:720px; width:100%;
+    max-height:88vh; overflow:auto; padding:24px 28px; box-shadow:0 20px 60px rgba(0,0,0,.3);
+  }
+  .modal-box h3{margin:0 0 4px; font-size:16px; color:var(--brand);}
+  .modal-box .sub{font-size:12px; color:var(--ink-faint); margin-bottom:16px;}
+  .map-grid{display:grid; grid-template-columns:110px 1fr; gap:10px 14px; align-items:center; margin-bottom:16px;}
+  .map-grid label{font-size:12.5px; font-weight:600; color:var(--ink-soft);}
+  .map-grid select{
+    width:100%; padding:7px 8px; font-size:12.5px; border:1px solid var(--line); border-radius:6px;
+    font-family:var(--font-ui); background:var(--paper); color:var(--ink);
+  }
+  .map-grid .req::after{content:' *'; color:var(--brand);}
+  .preview-wrap{border:1px solid var(--line); border-radius:6px; overflow:auto; max-height:200px; margin-bottom:16px;}
+  table.preview{width:100%; border-collapse:collapse; font-size:11.5px;}
+  table.preview th{background:var(--label-bg); padding:5px 8px; text-align:left; position:sticky; top:0; border-bottom:1px solid var(--line);}
+  table.preview td{padding:5px 8px; border-bottom:1px solid var(--line-soft); white-space:nowrap;}
+  .modal-actions{display:flex; justify-content:flex-end; gap:8px;}
+  .modal-close{position:absolute; top:16px; right:20px; cursor:pointer; color:var(--ink-faint); font-size:18px; background:none; border:none;}
+  .modal-box{position:relative;}
+
+  .sync-badge{
+    font-size:11px; font-weight:600; padding:3px 10px; border-radius:9px; white-space:nowrap;
+  }
+  .sync-offline{background:#fdf0ea; color:#9a5a1e; border:1px solid #f0cdaa;}
+  .sync-online{background:#eef8f1; color:#2f7d5f; border:1px solid #bfe0cf;}
+  .sync-syncing{background:#f7fbfe; color:#3a5a78; border:1px solid #cfe0ee;}
+
+  .login-box{max-width:380px;}
+  .login-box .field{margin-bottom:14px;}
+  .login-box label{display:block; font-size:12px; font-weight:600; color:var(--ink-soft); margin-bottom:5px;}
+  .login-box input{
+    width:100%; padding:9px 10px; font-size:13.5px; border:1px solid var(--line); border-radius:6px;
+    font-family:var(--font-ui); outline:none;
+  }
+  .login-box input:focus{border-color:var(--brand); background:#fbf6ea;}
+  .login-error{color:#a13232; font-size:12px; margin:-6px 0 12px; min-height:14px;}
+  .login-actions{display:flex; gap:8px; align-items:center; justify-content:space-between; margin-top:4px;}
+  .user-chip{display:flex; align-items:center; gap:8px;}
+  .user-chip .logout-link{font-size:11px; color:var(--ink-faint); text-decoration:underline; cursor:pointer; background:none; border:none; padding:0;}
+
+  @media print{
+    body{background:#fff; padding:0;}
+    .toolbar, .catalog-panel, .row-del, .add-row-btn{display:none !important;}
+    .sheet{box-shadow:none; border-radius:0; border:none;}
+    .cost-col, .gp-col, .cost-summary, .cost-caption, .cost-flag{display:none !important;}
+  }
+  @media (max-width:760px){
+    .sheet-head{flex-direction:column; gap:14px;}
+    .company-addr{text-align:left;}
+    .meta-label, .meta-val{width:auto; display:block;}
+    .meta table, .meta tbody, .meta tr{display:block; width:100%;}
+    .signoff{flex-direction:column;}
+    .totals{justify-content:flex-start;}
+  }
+</style>
+</head>
+<body>
+
+  <div class="toolbar">
+    <div class="left">
+      <button class="primary" id="addRowBtn">＋ 新增項目</button>
+      <button id="printBtn">🖨 列印 / 另存 PDF</button>
+      <button class="ghost" id="newQuoteBtn">重新開始一張報價單</button>
+    </div>
+    <div class="right" style="font-size:11.5px;color:var(--ink-faint); display:flex; align-items:center; gap:10px;">
+      <span id="syncBadge" class="sync-badge sync-offline">⚠ 尚未登入（僅本機儲存）</span>
+      <span class="user-chip" id="userChip" style="display:none;">
+        <span id="userEmailLabel"></span>
+        <button class="logout-link" id="logoutBtn" type="button">登出</button>
+      </span>
+      <span>已儲存常用料號 <span id="catalogCount">0</span> 筆　·　<span class="cost-flag">成本／毛利欄僅畫面顯示，列印不會出現</span></span>
+    </div>
+  </div>
+
+  <div class="sheet" id="sheet">
+    <div class="sheet-head">
+      <div class="brand">
+        <div class="brand-mark">AX</div>
+        <div>
+          <div class="brand-name-en">AXIOMTEK</div>
+          <div class="brand-tag">QUOTATION</div>
+        </div>
+      </div>
+      <div class="company-addr">
+        <div class="company-name" contenteditable="true" id="companyName">艾訊股份有限公司</div>
+        <div contenteditable="true" id="companyAddr">221新北市汐止區南興路55號8樓</div>
+        <div contenteditable="true" id="companyTel">TEL +886-2-8646-2111　FAX +886-2-2691-9091</div>
+        <div contenteditable="true" id="companyTax">Tax ID 23718011　www.axiomtek.com</div>
+      </div>
+    </div>
+
+    <div class="title-row"><h1>報　價　單</h1></div>
+
+    <div class="meta">
+      <table>
+        <tr>
+          <td class="meta-label">報價單號</td><td class="meta-val"><input id="q_no" placeholder="CTOSxxxxxxxx-v.01"></td>
+          <td class="meta-label">報價日期</td><td class="meta-val"><input id="q_date" type="date"></td>
+        </tr>
+        <tr>
+          <td class="meta-label">客戶名稱</td><td class="meta-val"><input id="q_customer" placeholder="客戶公司名稱"></td>
+          <td class="meta-label">有效日期</td><td class="meta-val"><input id="q_valid" type="date"></td>
+        </tr>
+        <tr>
+          <td class="meta-label">聯絡窗口</td><td class="meta-val"><input id="q_contact" placeholder="客戶聯絡人"></td>
+          <td class="meta-label">付款方式</td><td class="meta-val"><input id="q_pay" placeholder="匯款 / 支票 / ..."></td>
+        </tr>
+        <tr>
+          <td class="meta-label">聯絡電話</td><td class="meta-val"><input id="q_contact_tel" placeholder="客戶電話"></td>
+          <td class="meta-label">Incoterms</td><td class="meta-val"><input id="q_incoterms" placeholder="月結30天 / FOB ..."></td>
+        </tr>
+        <tr>
+          <td class="meta-label">E-mail</td><td class="meta-val"><input id="q_contact_email" placeholder="客戶信箱"></td>
+          <td class="meta-label">業務窗口</td><td class="meta-val"><input id="q_sales" placeholder="業務姓名"></td>
+        </tr>
+        <tr>
+          <td class="meta-label">交貨日期</td><td class="meta-val"><input id="q_delivery_date" placeholder="交貨日期／天數"></td>
+          <td class="meta-label">聯絡電話</td><td class="meta-val"><input id="q_sales_tel" placeholder="業務電話"></td>
+        </tr>
+        <tr>
+          <td class="meta-label">交貨地點</td><td class="meta-val"><input id="q_delivery_place" placeholder="交貨地點"></td>
+          <td class="meta-label">E-mail</td><td class="meta-val"><input id="q_sales_email" placeholder="業務信箱"></td>
+        </tr>
+      </table>
+    </div>
+
+    <div class="notice">
+      <div class="notice-block" contenteditable="true">注意事項：此報價單價格，本公司(艾訊)有調整價格之權利。</div>
+      <div class="notice-block" contenteditable="true">產品保固：交貨後即開始起算，2年為限。（週邊依原廠保固）</div>
+      <div class="notice-block" contenteditable="true"><strong>保固內容：</strong></div>
+      <div class="notice-block" contenteditable="true">1. 保固期間內零件、成品之維修更換及人工費用予以免費（週邊依原廠，不含人工到府服務）。</div>
+      <div class="notice-block" contenteditable="true">2. 產品原有規格功能升級不在本內容內。若遇產品停產或無法修復時，得以替代品取代。</div>
+      <div class="notice-block" contenteditable="true">3. 舉凡貴方人為疏失，擅改產品原有規格，天然災害或戰爭所引起之本公司產品損害，恕不列入保固範圍。</div>
+      <div class="notice-block" contenteditable="true">4. 所有向本公司Axiomtek購買的產品，均不得用於生產或開發在核子武器、化學與生物武器、飛彈，或任何其他大規模殺傷性武器上。</div>
+      <div class="notice-block" contenteditable="true" id="bankInfo">艾訊帳號資訊：台新國際商業銀行建北分行（銀行/分行代號：812-0687），帳號：2068-01-00192537</div>
+    </div>
+
+    <div class="currency-tag">幣別：<span contenteditable="true" id="currency">TWD</span></div>
+
+    <div class="items-wrap">
+      <table class="items" id="itemsTable">
+        <thead>
+          <tr>
+            <th style="width:32px;">項目</th>
+            <th style="width:105px;">料號</th>
+            <th style="width:145px;">品名</th>
+            <th>規格敘述</th>
+            <th style="width:52px;">數量</th>
+            <th style="width:85px;">單價(未稅)</th>
+            <th style="width:95px;">總價(未稅)</th>
+            <th class="cost-col" style="width:85px;">成本(參考)</th>
+            <th class="cost-col gp-col" style="width:90px;">毛利GP</th>
+            <th style="width:26px;"></th>
+          </tr>
+        </thead>
+        <tbody id="itemsBody"></tbody>
+      </table>
+      <datalist id="partnoList"></datalist>
+      <datalist id="nameList"></datalist>
+      <datalist id="specList"></datalist>
+      <button class="add-row-btn" id="addRowBtn2">＋ 新增項目</button>
+    </div>
+
+    <div class="totals">
+      <table>
+        <tr><td class="t-label">合計</td><td class="t-val" id="sumSub">TWD 0</td></tr>
+        <tr><td class="t-label">稅額(<span id="taxRateLabel">5</span>%)</td><td class="t-val" id="sumTax">TWD 0</td></tr>
+        <tr class="grand"><td class="t-label">總計</td><td class="t-val" id="sumTotal">TWD 0</td></tr>
+      </table>
+      <div>
+        <table class="cost-summary">
+          <tr><td class="t-label">成本合計</td><td class="t-val" id="sumCost">TWD 0</td></tr>
+          <tr><td class="t-label">毛利</td><td class="t-val" id="sumMargin">TWD 0</td></tr>
+          <tr class="grand"><td class="t-label">毛利率</td><td class="t-val" id="sumMarginPct">0%</td></tr>
+        </table>
+        <div class="cost-caption">僅供內部參考，列印/PDF時不會顯示</div>
+      </div>
+    </div>
+
+    <div class="remark">
+      <div class="remark-label">備註</div>
+      <textarea id="remark" placeholder="輸入備註，例如：南投縣網"></textarea>
+    </div>
+
+    <div class="footer-note">【如您對以上規格有需更改，請再來電告知】</div>
+
+    <div class="signoff">
+      <div class="sign-col">
+        <div class="cap">ACCEPTED AND CONFIRMED BY</div>
+        <div class="sign-line">如欲訂購且視此報價單為正式訂單，請簽名並用印蓋大小章或發票章後回傳。</div>
+      </div>
+      <div class="sign-col right">
+        <div class="cap">AXIOMTEK CO., LTD.</div>
+        <div class="stamp">公司<br>大小章<br>蓋印處</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="catalog-panel">
+    <div class="catalog-head" id="catalogToggle">
+      <h2>常用料號清單<span class="hint">（曾經報價過的料號會自動記錄在這裡，選取料號時會自動帶出品名與規格）</span></h2>
+      <button class="small ghost" type="button">展開 ▾</button>
+    </div>
+    <div class="catalog-body" id="catalogBody">
+      <div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:10px; flex-wrap:wrap;">
+        <button class="small primary" id="importSheetBtn" type="button">📄 匯入既有料號資料 (Excel / CSV)</button>
+        <button class="small" id="exportBtn" type="button">⬇ 匯出備份 (JSON)</button>
+        <button class="small" id="importBtn" type="button">⬆ 匯入備份 (JSON)</button>
+        <input type="file" id="importFile" accept="application/json" style="display:none;">
+        <input type="file" id="importSheetFile" accept=".csv,.xlsx,.xls" style="display:none;">
+      </div>
+      <div style="font-size:11px; color:var(--ink-faint); margin-bottom:10px;">
+        此清單儲存在目前這個瀏覽器的本機空間（localStorage），只有用同一個瀏覽器、同一個檔案路徑開啟才看得到。<strong>登入右上角帳號後</strong>，會改成即時同步到雲端資料庫，任何裝置登入同一帳號都會看到一樣的清單；建議仍定期按「匯出備份」保存一份 JSON 作為額外備援。
+      </div>
+      <table class="catalog">
+        <thead><tr><th style="width:105px;">料號</th><th style="width:145px;">品名</th><th>規格敘述</th><th style="width:80px;">單價</th><th style="width:80px;">成本</th><th style="width:60px;"></th></tr></thead>
+        <tbody id="catalogTableBody"></tbody>
+      </table>
+      <div class="empty-cat" id="catalogEmpty" style="display:none;">目前尚未儲存任何料號，於報價單中輸入完整料號／品名／規格後會自動加入清單。</div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="mapModal">
+    <div class="modal-box">
+      <button class="modal-close" id="mapModalClose" type="button">✕</button>
+      <h3>對應欄位</h3>
+      <div class="sub" id="mapSubtitle">請選擇你的檔案裡，哪一欄對應到料號／品名／規格／單價／成本。系統已嘗試自動判斷，請確認或手動調整。</div>
+      <div class="map-grid">
+        <label class="req">料號欄位</label><select id="mapCode"></select>
+        <label class="req">品名欄位</label><select id="mapName"></select>
+        <label class="req">規格欄位</label><select id="mapSpec"></select>
+        <label>單價欄位</label><select id="mapPrice"></select>
+        <label>成本欄位</label><select id="mapCost"></select>
+      </div>
+      <div class="sub" style="margin-bottom:6px;">預覽前幾筆資料：</div>
+      <div class="preview-wrap"><table class="preview" id="previewTable"></table></div>
+      <div class="modal-actions">
+        <button id="mapCancelBtn" type="button">取消</button>
+        <button class="primary" id="mapConfirmBtn" type="button">確認匯入</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="loginModal">
+    <div class="modal-box login-box">
+      <h3>登入以同步常用料號</h3>
+      <div class="sub">用你在 Firebase 建立的帳號登入，手機、桌機登入同一組帳密，常用料號清單就會即時同步。若先不登入，仍可使用本工具，但料號清單只會存在這台裝置。</div>
+      <div class="field">
+        <label>Email</label>
+        <input type="email" id="loginEmail" autocomplete="username" placeholder="you@example.com">
+      </div>
+      <div class="field">
+        <label>密碼</label>
+        <input type="password" id="loginPassword" autocomplete="current-password" placeholder="密碼">
+      </div>
+      <div class="login-error" id="loginError"></div>
+      <div class="login-actions">
+        <button class="ghost" id="skipLoginBtn" type="button">先不登入，僅本機使用</button>
+        <button class="primary" id="loginSubmitBtn" type="button">登入</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+<script>
+(function(){
+  const STORAGE_KEY = 'catalog:items';
+  const TAX_RATE = 0.05;
+  let catalog = []; // {code,name,spec,price,cost}
+  let rowSeq = 0;
+
+  const itemsBody = document.getElementById('itemsBody');
+  const partnoList = document.getElementById('partnoList');
+  const nameList = document.getElementById('nameList');
+  const specList = document.getElementById('specList');
+  const catalogTableBody = document.getElementById('catalogTableBody');
+  const catalogEmpty = document.getElementById('catalogEmpty');
+  const catalogCount = document.getElementById('catalogCount');
+  const syncBadge = document.getElementById('syncBadge');
+  const userChip = document.getElementById('userChip');
+  const userEmailLabel = document.getElementById('userEmailLabel');
+  const loginModal = document.getElementById('loginModal');
+
+  // ---- Firebase 雲端同步（多裝置共用常用料號清單）----
+  const firebaseConfig = {
+    apiKey: "AIzaSyDOWpyh1l_28-MJg7539otah0aqpuNLCP0",
+    authDomain: "axiomtek-quotation.firebaseapp.com",
+    projectId: "axiomtek-quotation",
+    storageBucket: "axiomtek-quotation.firebasestorage.app",
+    messagingSenderId: "149802750074",
+    appId: "1:149802750074:web:07d5070948287e019a2bc3",
+    measurementId: "G-VST30YDVW5"
+  };
+
+  let cloudReady = false;
+  let auth = null;
+  let db = null;
+  let currentUser = null;
+  let cloudUnsub = null;
+  let skippedLogin = false;
+
+  try{
+    if(typeof firebase !== 'undefined'){
+      firebase.initializeApp(firebaseConfig);
+      auth = firebase.auth();
+      db = firebase.firestore();
+      cloudReady = true;
+    }
+  }catch(e){
+    console.error('Firebase 初始化失敗，改用本機儲存', e);
+    cloudReady = false;
+  }
+
+  function setSyncBadge(mode, text){
+    syncBadge.className = 'sync-badge sync-' + mode;
+    syncBadge.textContent = text;
+  }
+
+  function fmt(n){
+    n = Math.round(n + Number.EPSILON);
+    return 'TWD ' + n.toLocaleString('en-US');
+  }
+
+  function localLoad(){
+    try{
+      const raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? JSON.parse(raw) : [];
+    }catch(e){
+      return [];
+    }
+  }
+
+  function localSave(list){
+    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(list)); }
+    catch(e){ console.error('無法儲存到本機', e); }
+  }
+
+  async function loadCatalog(){
+    // 尚未登入或雲端不可用時，先用本機資料
+    catalog = localLoad();
+    renderCatalog();
+  }
+
+  async function saveCatalog(){
+    if(currentUser && db){
+      try{
+        setSyncBadge('syncing', '🔄 同步中…');
+        await db.collection('users').doc(currentUser.uid).collection('catalog').doc('main')
+          .set({ items: catalog, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+        // 畫面會由 onSnapshot 監聽自動更新，這裡不需要再 renderCatalog
+      }catch(e){
+        console.error('雲端儲存失敗，改存本機', e);
+        localSave(catalog);
+        renderCatalog();
+        setSyncBadge('offline', '⚠ 雲端同步失敗，暫存本機');
+      }
+    }else{
+      localSave(catalog);
+      renderCatalog();
+    }
+  }
+
+  function attachCloudSync(user){
+    if(cloudUnsub) cloudUnsub();
+    setSyncBadge('syncing', '🔄 連線中…');
+    const docRef = db.collection('users').doc(user.uid).collection('catalog').doc('main');
+    cloudUnsub = docRef.onSnapshot(async (snap) => {
+      if(snap.exists && Array.isArray(snap.data().items)){
+        catalog = snap.data().items;
+        renderCatalog();
+        setSyncBadge('online', '☁ 已同步（' + user.email + '）');
+      }else{
+        // 雲端還沒有資料：如果本機已經有料號，詢問是否要上傳整批過去
+        const local = localLoad();
+        if(local.length > 0){
+          const ok = confirm(`偵測到這台裝置本機已有 ${local.length} 筆常用料號，要一次上傳到雲端帳號「${user.email}」嗎？\n（上傳後，之後所有裝置登入同一帳號就能看到這些料號）`);
+          if(ok){
+            catalog = local;
+            await saveCatalog();
+            return;
+          }
+        }
+        catalog = [];
+        renderCatalog();
+        setSyncBadge('online', '☁ 已同步（' + user.email + '）');
+      }
+    }, (err) => {
+      console.error('雲端同步發生錯誤', err);
+      setSyncBadge('offline', '⚠ 雲端連線中斷，暫用本機資料');
+      catalog = localLoad();
+      renderCatalog();
+    });
+  }
+
+  function detachCloudSync(){
+    if(cloudUnsub){ cloudUnsub(); cloudUnsub = null; }
+  }
+
+  function showLoginModal(){
+    if(skippedLogin) return;
+    loginModal.classList.add('open');
+  }
+  function hideLoginModal(){
+    loginModal.classList.remove('open');
+  }
+
+  if(cloudReady){
+    auth.onAuthStateChanged((user) => {
+      currentUser = user;
+      if(user){
+        hideLoginModal();
+        userChip.style.display = 'flex';
+        userEmailLabel.textContent = user.email;
+        attachCloudSync(user);
+      }else{
+        userChip.style.display = 'none';
+        detachCloudSync();
+        setSyncBadge('offline', '⚠ 尚未登入（僅本機儲存）');
+        catalog = localLoad();
+        renderCatalog();
+        showLoginModal();
+      }
+    });
+  }else{
+    setSyncBadge('offline', '⚠ 雲端套件未載入（僅本機儲存）');
+  }
+
+  document.getElementById('loginSubmitBtn').addEventListener('click', async () => {
+    const email = document.getElementById('loginEmail').value.trim();
+    const pw = document.getElementById('loginPassword').value;
+    const errEl = document.getElementById('loginError');
+    errEl.textContent = '';
+    if(!email || !pw){ errEl.textContent = '請輸入 Email 和密碼'; return; }
+    if(!cloudReady){ errEl.textContent = '雲端套件尚未載入，請確認網路連線'; return; }
+    try{
+      await auth.signInWithEmailAndPassword(email, pw);
+    }catch(e){
+      const map = {
+        'auth/invalid-email': 'Email 格式不正確',
+        'auth/user-not-found': '找不到這個帳號，請確認是否在 Firebase 主控台建立過',
+        'auth/wrong-password': '密碼不正確',
+        'auth/invalid-credential': 'Email 或密碼不正確',
+        'auth/too-many-requests': '嘗試次數過多，請稍後再試'
+      };
+      errEl.textContent = map[e.code] || ('登入失敗：' + e.message);
+    }
+  });
+
+  document.getElementById('skipLoginBtn').addEventListener('click', () => {
+    skippedLogin = true;
+    hideLoginModal();
+  });
+
+  document.getElementById('logoutBtn').addEventListener('click', async () => {
+    if(auth) await auth.signOut();
+    skippedLogin = false;
+  });
+
+  function upsertCatalogEntry(code, name, spec, price, cost){
+    if(!code || !name || !spec) return false;
+    const existing = catalog.find(c => c.code === code);
+    if(existing){
+      let changed = false;
+      if(existing.name !== name){ existing.name = name; changed = true; }
+      if(existing.spec !== spec){ existing.spec = spec; changed = true; }
+      if(price && existing.price !== price){ existing.price = price; changed = true; }
+      if(cost && existing.cost !== cost){ existing.cost = cost; changed = true; }
+      return changed;
+    }else{
+      catalog.push({code, name, spec, price: price || 0, cost: cost || 0});
+      return true;
+    }
+  }
+
+  function renderCatalog(){
+    catalogCount.textContent = catalog.length;
+    catalogTableBody.innerHTML = '';
+    partnoList.innerHTML = '';
+    nameList.innerHTML = '';
+    specList.innerHTML = '';
+
+    catalogEmpty.style.display = catalog.length === 0 ? 'block' : 'none';
+
+    catalog.forEach((c, idx) => {
+      const opt1 = document.createElement('option'); opt1.value = c.code; partnoList.appendChild(opt1);
+      const opt2 = document.createElement('option'); opt2.value = c.name; nameList.appendChild(opt2);
+      const opt3 = document.createElement('option'); opt3.value = c.spec; specList.appendChild(opt3);
+
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${escapeHtml(c.code)}</td>
+        <td class="name-td">${escapeHtml(c.name)}</td>
+        <td class="spec-td">${escapeHtml(c.spec)}</td>
+        <td>${c.price ? c.price.toLocaleString('en-US') : '-'}</td>
+        <td>${c.cost ? c.cost.toLocaleString('en-US') : '-'}</td>
+        <td><button class="small danger" data-del="${idx}" type="button">刪除</button></td>
+      `;
+      catalogTableBody.appendChild(tr);
+    });
+
+    catalogTableBody.querySelectorAll('[data-del]').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        const i = parseInt(btn.getAttribute('data-del'), 10);
+        catalog.splice(i,1);
+        await saveCatalog();
+      });
+    });
+  }
+
+  function escapeHtml(str){
+    return String(str).replace(/[&<>"']/g, s => ({
+      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+    }[s]));
+  }
+
+  function renumber(){
+    [...itemsBody.children].forEach((tr, i) => {
+      tr.querySelector('.rowidx').textContent = i+1;
+    });
+  }
+
+  function addRow(prefill){
+    prefill = prefill || {};
+    rowSeq++;
+    const tr = document.createElement('tr');
+    tr.dataset.rowId = rowSeq;
+    tr.innerHTML = `
+      <td class="rowidx"></td>
+      <td><input class="f-code" list="partnoList" placeholder="料號" value="${escapeHtml(prefill.code||'')}"></td>
+      <td class="name-cell"><input class="f-name" list="nameList" placeholder="品名" value="${escapeHtml(prefill.name||'')}"></td>
+      <td class="spec-cell"><input class="f-spec" list="specList" placeholder="規格敘述" value="${escapeHtml(prefill.spec||'')}"></td>
+      <td><input class="f-qty" type="number" min="0" step="1" value="${prefill.qty||1}"></td>
+      <td><input class="f-price" type="number" min="0" step="1" value="${prefill.price||''}"></td>
+      <td class="money f-total">TWD 0</td>
+      <td class="cost-col"><input class="f-cost" type="number" min="0" step="1" value="${prefill.cost||''}" placeholder="成本"></td>
+      <td class="cost-col gp-col f-gp">-</td>
+      <td><button class="row-del" type="button" title="刪除此列">✕</button></td>
+    `;
+    itemsBody.appendChild(tr);
+
+    const codeInput = tr.querySelector('.f-code');
+    const nameInput = tr.querySelector('.f-name');
+    const specInput = tr.querySelector('.f-spec');
+    const qtyInput = tr.querySelector('.f-qty');
+    const priceInput = tr.querySelector('.f-price');
+    const costInput = tr.querySelector('.f-cost');
+
+    // 選擇 / 輸入完整符合的料號時，立即帶出品名、規格；單價與成本只在欄位空白時才帶入，避免覆蓋手動議價。
+    function autofillFromCode(){
+      const match = catalog.find(c => c.code === codeInput.value.trim());
+      if(match){
+        nameInput.value = match.name;
+        specInput.value = match.spec;
+        if(!priceInput.value && match.price) priceInput.value = match.price;
+        if(!costInput.value && match.cost) costInput.value = match.cost;
+        recalc();
+      }
+    }
+
+    async function maybeSaveToCatalog(){
+      const code = codeInput.value.trim();
+      const name = nameInput.value.trim();
+      const spec = specInput.value.trim();
+      const price = parseFloat(priceInput.value) || 0;
+      const cost = parseFloat(costInput.value) || 0;
+      if(code && name && spec){
+        const changed = upsertCatalogEntry(code, name, spec, price, cost);
+        if(changed) await saveCatalog();
+      }
+    }
+
+    codeInput.addEventListener('input', autofillFromCode);
+    codeInput.addEventListener('change', () => { autofillFromCode(); maybeSaveToCatalog(); });
+    nameInput.addEventListener('change', maybeSaveToCatalog);
+    specInput.addEventListener('change', maybeSaveToCatalog);
+    priceInput.addEventListener('change', maybeSaveToCatalog);
+    costInput.addEventListener('change', maybeSaveToCatalog);
+    [qtyInput, priceInput, costInput].forEach(el => el.addEventListener('input', recalc));
+
+    tr.querySelector('.row-del').addEventListener('click', () => {
+      tr.remove();
+      renumber();
+      recalc();
+    });
+
+    renumber();
+    recalc();
+    if(!prefill.code) codeInput.focus();
+  }
+
+  function recalc(){
+    let subtotal = 0;
+    let costTotal = 0;
+    itemsBody.querySelectorAll('tr').forEach(tr=>{
+      const qty = parseFloat(tr.querySelector('.f-qty').value) || 0;
+      const price = parseFloat(tr.querySelector('.f-price').value) || 0;
+      const cost = parseFloat(tr.querySelector('.f-cost').value) || 0;
+      const total = qty * price;
+      tr.querySelector('.f-total').textContent = fmt(total);
+      subtotal += total;
+      costTotal += qty * cost;
+
+      const gpCell = tr.querySelector('.f-gp');
+      const costInput = tr.querySelector('.f-cost');
+      if(costInput.value === '' || price === 0){
+        gpCell.innerHTML = '-';
+        gpCell.classList.remove('gp-neg');
+      }else{
+        const gpAmt = price - cost;
+        const gpPct = price > 0 ? (gpAmt / price * 100) : 0;
+        gpCell.innerHTML = `<span class="gp-pct">${gpPct.toFixed(1)}%</span><span class="gp-amt">${gpAmt>=0?'+':''}${Math.round(gpAmt).toLocaleString('en-US')}/件</span>`;
+        gpCell.classList.toggle('gp-neg', gpAmt < 0);
+      }
+    });
+    const tax = subtotal * TAX_RATE;
+    document.getElementById('sumSub').textContent = fmt(subtotal);
+    document.getElementById('sumTax').textContent = fmt(tax);
+    document.getElementById('sumTotal').textContent = fmt(subtotal + tax);
+
+    const margin = subtotal - costTotal;
+    const marginPct = subtotal > 0 ? (margin / subtotal * 100) : 0;
+    document.getElementById('sumCost').textContent = fmt(costTotal);
+    document.getElementById('sumMargin').textContent = fmt(margin);
+    document.getElementById('sumMarginPct').textContent = marginPct.toFixed(1) + '%';
+  }
+
+  document.getElementById('addRowBtn').addEventListener('click', () => addRow());
+  document.getElementById('addRowBtn2').addEventListener('click', () => addRow());
+  document.getElementById('printBtn').addEventListener('click', () => window.print());
+  document.getElementById('newQuoteBtn').addEventListener('click', () => {
+    if(confirm('確定要清空目前這張報價單的品項與客戶資訊嗎？（已儲存的常用料號清單不會被刪除）')){
+      document.querySelectorAll('.meta-val input').forEach(i=>i.value='');
+      document.getElementById('remark').value='';
+      itemsBody.innerHTML='';
+      addRow();
+    }
+  });
+
+  document.getElementById('exportBtn').addEventListener('click', () => {
+    const blob = new Blob([JSON.stringify(catalog, null, 2)], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const stamp = new Date().toISOString().slice(0,10);
+    a.href = url;
+    a.download = `axiomtek-常用料號備份-${stamp}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  });
+
+  document.getElementById('importBtn').addEventListener('click', () => {
+    document.getElementById('importFile').click();
+  });
+
+  document.getElementById('importFile').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if(!file) return;
+    try{
+      const text = await file.text();
+      const imported = JSON.parse(text);
+      if(!Array.isArray(imported)) throw new Error('格式不正確');
+      let added = 0, updated = 0;
+      imported.forEach(item => {
+        if(!item.code || !item.name || !item.spec) return;
+        const changed = upsertCatalogEntry(item.code, item.name, item.spec, item.price, item.cost);
+        if(changed){
+          const existedBefore = catalog.some(c => c.code === item.code);
+          existedBefore ? updated++ : added++;
+        }
+      });
+      await saveCatalog();
+      alert(`匯入完成：新增 ${added} 筆，更新 ${updated} 筆。`);
+    }catch(err){
+      alert('匯入失敗，請確認是本工具匯出的 JSON 備份檔。');
+    }
+    e.target.value = '';
+  });
+
+  // ---- 匯入既有料號資料 (Excel / CSV)，需先對應欄位 ----
+  let importedRows = []; // array of arrays, row[0] = header
+  const mapModal = document.getElementById('mapModal');
+  const GUESS = {
+    code: ['料號','品號','型號','part no','part number','pn','item no','編號'],
+    name: ['品名','名稱','產品名稱','item','name','description short','品項'],
+    spec: ['規格','規格敘述','spec','specification','description','描述'],
+    price: ['單價','售價','價格','price','unit price','報價'],
+    cost: ['成本','進價','cost','buy price','採購價']
+  };
+
+  function guessColumn(headers, keywords){
+    const lower = headers.map(h => String(h||'').toLowerCase().trim());
+    for(const kw of keywords){
+      const idx = lower.findIndex(h => h.includes(kw));
+      if(idx !== -1) return idx;
+    }
+    return -1;
+  }
+
+  function populateSelect(sel, headers, selectedIdx, optional){
+    sel.innerHTML = '';
+    if(optional){
+      const optNone = document.createElement('option');
+      optNone.value = '-1'; optNone.textContent = '（不匯入）';
+      sel.appendChild(optNone);
+    }
+    headers.forEach((h, i) => {
+      const opt = document.createElement('option');
+      opt.value = i;
+      opt.textContent = `${h ? h : '(欄' + (i+1) + ')'}`;
+      sel.appendChild(opt);
+    });
+    sel.value = selectedIdx >= 0 ? selectedIdx : (optional ? '-1' : 0);
+  }
+
+  function renderPreview(headers, rows){
+    const table = document.getElementById('previewTable');
+    let html = '<thead><tr>' + headers.map(h => `<th>${escapeHtml(h || '')}</th>`).join('') + '</tr></thead><tbody>';
+    rows.slice(0,5).forEach(r => {
+      html += '<tr>' + headers.map((_,i) => `<td>${escapeHtml(r[i] ?? '')}</td>`).join('') + '</tr>';
+    });
+    html += '</tbody>';
+    table.innerHTML = html;
+  }
+
+  document.getElementById('importSheetBtn').addEventListener('click', () => {
+    document.getElementById('importSheetFile').click();
+  });
+
+  document.getElementById('importSheetFile').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if(!file) return;
+    if(typeof XLSX === 'undefined'){
+      alert('讀取套件尚未載入完成，請確認網路連線後再試一次。');
+      return;
+    }
+    try{
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, {type:'array'});
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, {header:1, raw:false, defval:''});
+      if(rows.length < 2){ alert('這個檔案裡沒有偵測到資料列。'); return; }
+
+      const headers = rows[0];
+      importedRows = rows.slice(1).filter(r => r.some(v => String(v).trim() !== ''));
+
+      populateSelect(document.getElementById('mapCode'), headers, guessColumn(headers, GUESS.code), false);
+      populateSelect(document.getElementById('mapName'), headers, guessColumn(headers, GUESS.name), false);
+      populateSelect(document.getElementById('mapSpec'), headers, guessColumn(headers, GUESS.spec), false);
+      populateSelect(document.getElementById('mapPrice'), headers, guessColumn(headers, GUESS.price), true);
+      populateSelect(document.getElementById('mapCost'), headers, guessColumn(headers, GUESS.cost), true);
+
+      document.getElementById('mapSubtitle').textContent =
+        `「${file.name}」共偵測到 ${importedRows.length} 筆資料。請確認欄位對應（系統已自動猜測，可自行調整）：`;
+      renderPreview(headers, importedRows);
+      mapModal.classList.add('open');
+    }catch(err){
+      console.error(err);
+      alert('讀取檔案失敗，請確認檔案格式是否為 .csv、.xlsx 或 .xls。');
+    }
+  });
+
+  document.getElementById('mapModalClose').addEventListener('click', () => mapModal.classList.remove('open'));
+  document.getElementById('mapCancelBtn').addEventListener('click', () => mapModal.classList.remove('open'));
+
+  document.getElementById('mapConfirmBtn').addEventListener('click', async () => {
+    const codeIdx = parseInt(document.getElementById('mapCode').value, 10);
+    const nameIdx = parseInt(document.getElementById('mapName').value, 10);
+    const specIdx = parseInt(document.getElementById('mapSpec').value, 10);
+    const priceIdx = parseInt(document.getElementById('mapPrice').value, 10);
+    const costIdx = parseInt(document.getElementById('mapCost').value, 10);
+
+    let added = 0, updated = 0, skipped = 0;
+    importedRows.forEach(r => {
+      const code = String(r[codeIdx] ?? '').trim();
+      const name = String(r[nameIdx] ?? '').trim();
+      const spec = String(r[specIdx] ?? '').trim();
+      const price = priceIdx >= 0 ? parseFloat(String(r[priceIdx]).replace(/[^0-9.\-]/g,'')) || 0 : 0;
+      const cost = costIdx >= 0 ? parseFloat(String(r[costIdx]).replace(/[^0-9.\-]/g,'')) || 0 : 0;
+      if(!code || !name || !spec){ skipped++; return; }
+      const existedBefore = catalog.some(c => c.code === code);
+      const changed = upsertCatalogEntry(code, name, spec, price, cost);
+      if(changed) existedBefore ? updated++ : added++;
+    });
+
+    await saveCatalog();
+    mapModal.classList.remove('open');
+    alert(`匯入完成：新增 ${added} 筆，更新 ${updated} 筆${skipped ? `，略過 ${skipped} 筆（缺少料號/品名/規格）` : ''}。`);
+  });
+
+  document.getElementById('catalogToggle').addEventListener('click', () => {
+    const body = document.getElementById('catalogBody');
+    const btn = document.querySelector('#catalogToggle button');
+    body.classList.toggle('open');
+    btn.textContent = body.classList.contains('open') ? '收合 ▴' : '展開 ▾';
+  });
+
+  // default dates
+  const today = new Date();
+  const iso = d => d.toISOString().slice(0,10);
+  document.getElementById('q_date').value = iso(today);
+  const valid = new Date(today); valid.setDate(valid.getDate()+7);
+  document.getElementById('q_valid').value = iso(valid);
+
+  loadCatalog().then(() => addRow());
+})();
+</script>
+</body>
+</html>

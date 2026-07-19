@@ -1,0 +1,15 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# 編輯器 / IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 暫存與備份檔
+*~
+*.bak
+*.tmp

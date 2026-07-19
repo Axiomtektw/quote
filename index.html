@@ -410,7 +410,7 @@
           <div class="brand-tag">QUOTATION</div>
         </div>
       </div>
-      <div class="company-addr">
+      <div class="company-addr" id="companyBox">
         <div class="company-name" contenteditable="true" id="companyName">艾訊股份有限公司</div>
         <div contenteditable="true" id="companyAddr">221新北市汐止區南興路55號8樓</div>
         <div contenteditable="true" id="companyTel">TEL +886-2-8646-2111　FAX +886-2-2691-9091</div>
@@ -453,7 +453,7 @@
       </table>
     </div>
 
-    <div class="notice">
+    <div class="notice" id="noticeBox">
       <div class="notice-block" contenteditable="true">注意事項：此報價單價格，本公司(艾訊)有調整價格之權利。</div>
       <div class="notice-block" contenteditable="true">產品保固：交貨後即開始起算，2年為限。（週邊依原廠保固）</div>
       <div class="notice-block" contenteditable="true"><strong>保固內容：</strong></div>
@@ -920,10 +920,12 @@
       tr.remove();
       renumber();
       recalc();
+      scheduleDraftSave();
     });
 
     renumber();
     recalc();
+    scheduleDraftSave();
     if(!prefill.code) codeInput.focus();
   }
 
@@ -963,6 +965,65 @@
     document.getElementById('sumMarginPct').textContent = marginPct.toFixed(1) + '%';
   }
 
+  // ---- 目前報價單：序列化 / 還原 ----
+  const META_IDS = ['q_no','q_date','q_customer','q_valid','q_contact','q_pay','q_contact_tel','q_incoterms','q_contact_email','q_sales','q_delivery_date','q_sales_tel','q_delivery_place','q_sales_email'];
+  const EDITABLE_BOXES = ['companyBox','noticeBox'];
+
+  function collectQuote(){
+    const meta = {};
+    META_IDS.forEach(id => { const el = document.getElementById(id); if(el) meta[id] = el.value; });
+    const boxes = {};
+    EDITABLE_BOXES.forEach(id => { const el = document.getElementById(id); if(el) boxes[id] = el.innerHTML; });
+    const items = [];
+    itemsBody.querySelectorAll('tr').forEach(tr => {
+      items.push({
+        code:  tr.querySelector('.f-code').value,
+        name:  tr.querySelector('.f-name').value,
+        spec:  tr.querySelector('.f-spec').value,
+        qty:   tr.querySelector('.f-qty').value,
+        price: tr.querySelector('.f-price').value,
+        cost:  tr.querySelector('.f-cost').value
+      });
+    });
+    return { meta, boxes, items, currency: currentCurrency(), taxRate, remark: document.getElementById('remark').value };
+  }
+
+  function applyQuote(q){
+    if(!q) return;
+    q.meta = q.meta || {};
+    META_IDS.forEach(id => { const el = document.getElementById(id); if(el) el.value = q.meta[id] || ''; });
+    if(q.boxes){
+      EDITABLE_BOXES.forEach(id => { const el = document.getElementById(id); if(el && typeof q.boxes[id] === 'string') el.innerHTML = q.boxes[id]; });
+    }
+    const cur = document.getElementById('currency');
+    if(cur && q.currency) cur.textContent = q.currency;
+    if(typeof q.taxRate === 'number'){ taxRate = q.taxRate; taxRateInput.value = +(q.taxRate * 100).toFixed(4); }
+    document.getElementById('remark').value = q.remark || '';
+    itemsBody.innerHTML = '';
+    const items = (Array.isArray(q.items) && q.items.length) ? q.items : [{}];
+    items.forEach(it => addRow(it));
+    recalc();
+  }
+
+  function isQuoteEmpty(q){
+    if(!q) return true;
+    const hasMeta = q.meta && Object.values(q.meta).some(v => v && String(v).trim());
+    const hasItem = Array.isArray(q.items) && q.items.some(it =>
+      [it.code, it.name, it.spec, it.price, it.cost].some(v => v && String(v).trim()));
+    return !hasMeta && !hasItem && !(q.remark && q.remark.trim());
+  }
+
+  // ---- 目前報價單：localStorage 自動暫存 ----
+  const DRAFT_KEY = 'quote:draft';
+  let draftTimer = null;
+  function saveDraft(){
+    try{ localStorage.setItem(DRAFT_KEY, JSON.stringify(collectQuote())); }catch(e){}
+  }
+  function scheduleDraftSave(){
+    clearTimeout(draftTimer);
+    draftTimer = setTimeout(saveDraft, 400);
+  }
+
   document.getElementById('addRowBtn').addEventListener('click', () => addRow());
   document.getElementById('addRowBtn2').addEventListener('click', () => addRow());
   document.getElementById('printBtn').addEventListener('click', () => window.print());
@@ -974,13 +1035,17 @@
     const v = parseFloat(taxRateInput.value);
     taxRate = (isFinite(v) && v >= 0) ? v / 100 : 0;
     recalc();
+    scheduleDraftSave();
   });
+  // 報價單任何欄位變動即排程自動暫存
+  document.getElementById('sheet').addEventListener('input', scheduleDraftSave);
   document.getElementById('newQuoteBtn').addEventListener('click', () => {
     if(confirm('確定要清空目前這張報價單的品項與客戶資訊嗎？（已儲存的常用料號清單不會被刪除）')){
       document.querySelectorAll('.meta-val input').forEach(i=>i.value='');
       document.getElementById('remark').value='';
       itemsBody.innerHTML='';
       addRow();
+      saveDraft();
     }
   });
 
@@ -1151,7 +1216,12 @@
   const valid = new Date(today); valid.setDate(valid.getDate()+7);
   document.getElementById('q_valid').value = iso(valid);
 
-  loadCatalog().then(() => addRow());
+  loadCatalog().then(() => {
+    let draft = null;
+    try{ const raw = localStorage.getItem(DRAFT_KEY); if(raw) draft = JSON.parse(raw); }catch(e){}
+    if(draft && !isQuoteEmpty(draft)) applyQuote(draft);
+    else addRow();
+  });
 })();
 </script>
 </body>

@@ -236,6 +236,12 @@
   .totals td.t-label{background:var(--label-bg); color:var(--ink-soft); width:110px; font-weight:600;}
   .totals td.t-val{text-align:right; font-family:var(--font-num);}
   .totals tr.grand td{font-size:15px; font-weight:700; color:var(--brand); border-top:2px solid var(--ink);}
+  .totals td.t-label .tax-input{
+    width:44px; border:1px solid var(--line); border-radius:4px;
+    font-family:var(--font-num); font-size:12px; padding:1px 4px; text-align:right;
+    background:var(--paper); color:var(--ink); vertical-align:middle;
+  }
+  .totals td.t-label .tax-input:focus{outline:none; border-color:var(--brand); background:#fbf6ea;}
 
   .cost-summary{
     width:280px; border-collapse:collapse; background:var(--cost-bg);
@@ -487,7 +493,7 @@
     <div class="totals">
       <table>
         <tr><td class="t-label">合計</td><td class="t-val" id="sumSub">TWD 0</td></tr>
-        <tr><td class="t-label">稅額(<span id="taxRateLabel">5</span>%)</td><td class="t-val" id="sumTax">TWD 0</td></tr>
+        <tr><td class="t-label">稅額(<input id="taxRateInput" class="tax-input" type="number" min="0" max="100" step="0.5" value="5">%)</td><td class="t-val" id="sumTax">TWD 0</td></tr>
         <tr class="grand"><td class="t-label">總計</td><td class="t-val" id="sumTotal">TWD 0</td></tr>
       </table>
       <div>
@@ -592,7 +598,7 @@
 <script>
 (function(){
   const STORAGE_KEY = 'catalog:items';
-  const TAX_RATE = 0.05;
+  let taxRate = 0.05; // 稅率，可由使用者調整
   let catalog = []; // {code,name,spec,price,cost}
   let rowSeq = 0;
 
@@ -945,7 +951,7 @@
         gpCell.classList.toggle('gp-neg', gpAmt < 0);
       }
     });
-    const tax = subtotal * TAX_RATE;
+    const tax = subtotal * taxRate;
     document.getElementById('sumSub').textContent = fmt(subtotal);
     document.getElementById('sumTax').textContent = fmt(tax);
     document.getElementById('sumTotal').textContent = fmt(subtotal + tax);
@@ -962,6 +968,13 @@
   document.getElementById('printBtn').addEventListener('click', () => window.print());
   // 幣別變更時，重新格式化所有金額
   document.getElementById('currency').addEventListener('input', recalc);
+  // 可調稅率
+  const taxRateInput = document.getElementById('taxRateInput');
+  taxRateInput.addEventListener('input', () => {
+    const v = parseFloat(taxRateInput.value);
+    taxRate = (isFinite(v) && v >= 0) ? v / 100 : 0;
+    recalc();
+  });
   document.getElementById('newQuoteBtn').addEventListener('click', () => {
     if(confirm('確定要清空目前這張報價單的品項與客戶資訊嗎？（已儲存的常用料號清單不會被刪除）')){
       document.querySelectorAll('.meta-val input').forEach(i=>i.value='');

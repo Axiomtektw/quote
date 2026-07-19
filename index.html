@@ -775,12 +775,16 @@
         userChip.style.display = 'flex';
         userEmailLabel.textContent = user.email;
         attachCloudSync(user);
+        attachQuotesSync(user);
       }else{
         userChip.style.display = 'none';
         detachCloudSync();
+        detachQuotesSync();
         setSyncBadge('offline', '⚠ 尚未登入（僅本機儲存）');
         catalog = localLoad();
         renderCatalog();
+        loadQuotes();
+        renderQuotes();
         showLoginModal();
       }
     });
@@ -1239,16 +1243,56 @@
   const quotesTableBody = document.getElementById('quotesTableBody');
   const quotesEmpty = document.getElementById('quotesEmpty');
 
-  function loadQuotes(){
-    try{ const raw = localStorage.getItem(QUOTES_KEY); quotes = raw ? JSON.parse(raw) : []; }
-    catch(e){ quotes = []; }
-    if(!Array.isArray(quotes)) quotes = [];
+  let quotesUnsub = null;
+
+  function loadQuotesLocal(){
+    try{ const raw = localStorage.getItem(QUOTES_KEY); const a = raw ? JSON.parse(raw) : []; return Array.isArray(a) ? a : []; }
+    catch(e){ return []; }
   }
-  function persistQuotes(){
+  function loadQuotes(){ quotes = loadQuotesLocal(); }
+  function saveQuotesLocal(){
     try{ localStorage.setItem(QUOTES_KEY, JSON.stringify(quotes)); }
     catch(e){ console.error('無法儲存報價單清單', e); }
-    renderQuotes();
   }
+  // 註：所有報價單存於單一 Firestore 文件 (users/{uid}/quotes/main) 的陣列中，
+  // 與常用料號清單相同模式；若日後資料量大可改為每張報價單一份文件。
+  async function persistQuotesCloud(){
+    await db.collection('users').doc(currentUser.uid).collection('quotes').doc('main')
+      .set({ items: quotes, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+  }
+  function persistQuotes(){
+    if(currentUser && db){
+      persistQuotesCloud().catch(e => {
+        console.error('報價單雲端儲存失敗，改存本機', e);
+        saveQuotesLocal();
+      });
+      renderQuotes(); // 即時回饋；稍後 onSnapshot 會再同步一次
+    }else{
+      saveQuotesLocal();
+      renderQuotes();
+    }
+  }
+
+  function attachQuotesSync(user){
+    if(quotesUnsub) quotesUnsub();
+    const ref = db.collection('users').doc(user.uid).collection('quotes').doc('main');
+    quotesUnsub = ref.onSnapshot(async (snap) => {
+      if(snap.exists && Array.isArray(snap.data().items)){
+        quotes = snap.data().items;
+        renderQuotes();
+      }else{
+        // 雲端尚無報價單：若本機已有，首次登入自動上傳
+        const local = loadQuotesLocal();
+        if(local.length > 0){ quotes = local; await persistQuotesCloud().catch(e => console.error(e)); return; }
+        quotes = [];
+        renderQuotes();
+      }
+    }, (err) => {
+      console.error('報價單雲端同步錯誤', err);
+      loadQuotes(); renderQuotes();
+    });
+  }
+  function detachQuotesSync(){ if(quotesUnsub){ quotesUnsub(); quotesUnsub = null; } }
   function quoteTotals(q){
     let sub = 0;
     (q.items||[]).forEach(it => { sub += (parseFloat(it.qty)||0) * (parseFloat(it.price)||0); });

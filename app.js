@@ -46,9 +46,15 @@
     cloudReady = false;
   }
 
+  const SYNC_ICONS = {
+    offline: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+    online: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/><polyline points="9 13 11 15 15 11"/></svg>',
+    syncing: '<svg class="icon spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>'
+  };
   function setSyncBadge(mode, text){
     syncBadge.className = 'sync-badge sync-' + mode;
-    syncBadge.textContent = text;
+    syncBadge.innerHTML = (SYNC_ICONS[mode] || '') + '<span></span>';
+    syncBadge.querySelector('span').textContent = text;
   }
 
   function currentCurrency(){
@@ -85,7 +91,7 @@
   async function saveCatalog(){
     if(currentUser && db){
       try{
-        setSyncBadge('syncing', '🔄 同步中…');
+        setSyncBadge('syncing', '同步中…');
         await db.collection('users').doc(currentUser.uid).collection('catalog').doc('main')
           .set({ items: catalog, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
         // 畫面會由 onSnapshot 監聽自動更新，這裡不需要再 renderCatalog
@@ -93,7 +99,7 @@
         console.error('雲端儲存失敗，改存本機', e);
         localSave(catalog);
         renderCatalog();
-        setSyncBadge('offline', '⚠ 雲端同步失敗，暫存本機');
+        setSyncBadge('offline', '雲端同步失敗，暫存本機');
       }
     }else{
       localSave(catalog);
@@ -103,13 +109,13 @@
 
   function attachCloudSync(user){
     if(cloudUnsub) cloudUnsub();
-    setSyncBadge('syncing', '🔄 連線中…');
+    setSyncBadge('syncing', '連線中…');
     const docRef = db.collection('users').doc(user.uid).collection('catalog').doc('main');
     cloudUnsub = docRef.onSnapshot(async (snap) => {
       if(snap.exists && Array.isArray(snap.data().items)){
         catalog = snap.data().items;
         renderCatalog();
-        setSyncBadge('online', '☁ 已同步（' + user.email + '）');
+        setSyncBadge('online', '已同步（' + user.email + '）');
       }else{
         // 雲端還沒有資料：如果本機已經有料號，詢問是否要上傳整批過去
         const local = localLoad();
@@ -123,11 +129,11 @@
         }
         catalog = [];
         renderCatalog();
-        setSyncBadge('online', '☁ 已同步（' + user.email + '）');
+        setSyncBadge('online', '已同步（' + user.email + '）');
       }
     }, (err) => {
       console.error('雲端同步發生錯誤', err);
-      setSyncBadge('offline', '⚠ 雲端連線中斷，暫用本機資料');
+      setSyncBadge('offline', '雲端連線中斷，暫用本機資料');
       catalog = localLoad();
       renderCatalog();
     });
@@ -158,7 +164,7 @@
         userChip.style.display = 'none';
         detachCloudSync();
         detachQuotesSync();
-        setSyncBadge('offline', '⚠ 尚未登入（僅本機儲存）');
+        setSyncBadge('offline', '尚未登入（僅本機儲存）');
         catalog = localLoad();
         renderCatalog();
         loadQuotes();
@@ -167,7 +173,7 @@
       }
     });
   }else{
-    setSyncBadge('offline', '⚠ 雲端套件未載入（僅本機儲存）');
+    setSyncBadge('offline', '雲端套件未載入（僅本機儲存）');
   }
 
   document.getElementById('loginSubmitBtn').addEventListener('click', async () => {
@@ -279,7 +285,7 @@
       <td class="money f-total">TWD 0</td>
       <td class="cost-col"><input class="f-cost" type="number" min="0" step="1" value="${prefill.cost||''}" placeholder="成本"></td>
       <td class="cost-col gp-col f-gp">-</td>
-      <td><button class="row-del" type="button" title="刪除此列">✕</button></td>
+      <td><button class="row-del" type="button" title="刪除此列" aria-label="刪除此列"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></td>
     `;
     itemsBody.appendChild(tr);
 
@@ -627,7 +633,7 @@
     const body = document.getElementById('catalogBody');
     const btn = document.querySelector('#catalogToggle button');
     body.classList.toggle('open');
-    btn.textContent = body.classList.contains('open') ? '收合 ▴' : '展開 ▾';
+    btn.classList.toggle('open', body.classList.contains('open'));
   });
 
   // ---- 已存報價單：本機儲存與歷史紀錄 ----
@@ -803,7 +809,7 @@
     const body = document.getElementById('quotesBody');
     const btn = document.querySelector('#quotesToggle button');
     body.classList.toggle('open');
-    btn.textContent = body.classList.contains('open') ? '收合 ▴' : '展開 ▾';
+    btn.classList.toggle('open', body.classList.contains('open'));
   });
 
   // default dates

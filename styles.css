@@ -49,8 +49,20 @@
     padding:8px 14px;
     cursor:pointer;
     transition:all .15s ease;
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
   }
   button:hover{border-color:var(--brand); color:var(--brand);}
+
+  /* 簡約線條 icon：繼承文字色 (currentColor)，隨字級縮放 */
+  .icon{ width:1em; height:1em; flex:none; }
+  .row-del .icon{ width:15px; height:15px; }
+  .modal-close .icon{ width:18px; height:18px; }
+  .chevron{ transition:transform .2s ease; }
+  .catalog-head button.open .chevron{ transform:rotate(180deg); }
+  @keyframes icon-spin{ to{ transform:rotate(360deg); } }
+  .icon.spin{ animation:icon-spin 1s linear infinite; }
   button.primary{background:var(--brand); color:#fff; border-color:var(--brand);}
   button.primary:hover{background:#5c0330; color:#fff;}
   button.danger{color:#a13232; border-color:#eccaca; background:#fdf6f6;}
@@ -340,6 +352,7 @@
 
   .sync-badge{
     font-size:11px; font-weight:600; padding:3px 10px; border-radius:9px; white-space:nowrap;
+    display:inline-flex; align-items:center; gap:5px;
   }
   .sync-offline{background:#fdf0ea; color:#9a5a1e; border:1px solid #f0cdaa;}
   .sync-online{background:#eef8f1; color:#2f7d5f; border:1px solid #bfe0cf;}

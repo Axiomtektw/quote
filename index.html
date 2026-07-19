@@ -12,13 +12,13 @@
 
   <div class="toolbar">
     <div class="left">
-      <button class="primary" id="addRowBtn">＋ 新增項目</button>
-      <button id="saveQuoteBtn">💾 儲存報價單</button>
-      <button id="printBtn">🖨 列印 / 另存 PDF</button>
+      <button class="primary" id="addRowBtn"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>新增項目</button>
+      <button id="saveQuoteBtn"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/></svg>儲存報價單</button>
+      <button id="printBtn"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg>列印 / 另存 PDF</button>
       <button class="ghost" id="newQuoteBtn">重新開始一張報價單</button>
     </div>
     <div class="right" style="font-size:11.5px;color:var(--ink-faint); display:flex; align-items:center; gap:10px;">
-      <span id="syncBadge" class="sync-badge sync-offline">⚠ 尚未登入（僅本機儲存）</span>
+      <span id="syncBadge" class="sync-badge sync-offline"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg><span>尚未登入（僅本機儲存）</span></span>
       <span class="user-chip" id="userChip" style="display:none;">
         <span id="userEmailLabel"></span>
         <button class="logout-link" id="logoutBtn" type="button">登出</button>
@@ -113,7 +113,7 @@
       <datalist id="partnoList"></datalist>
       <datalist id="nameList"></datalist>
       <datalist id="specList"></datalist>
-      <button class="add-row-btn" id="addRowBtn2">＋ 新增項目</button>
+      <button class="add-row-btn" id="addRowBtn2"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>新增項目</button>
     </div>
 
     <div class="totals">
@@ -154,27 +154,27 @@
   <div class="catalog-panel">
     <div class="catalog-head" id="quotesToggle">
       <h2>已存報價單<span class="hint">（按上方「儲存報價單」保存目前這張，之後可在這裡開啟、複製或刪除）</span></h2>
-      <button class="small ghost" type="button">展開 ▾</button>
+      <button class="small ghost" type="button" aria-label="展開 / 收合"><svg class="icon chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
     </div>
     <div class="catalog-body" id="quotesBody">
       <table class="catalog">
         <thead><tr><th style="width:150px;">報價單號</th><th style="width:160px;">客戶</th><th style="width:110px;">日期</th><th style="width:120px; text-align:right;">總計</th><th style="width:130px;">儲存時間</th><th style="width:150px;"></th></tr></thead>
         <tbody id="quotesTableBody"></tbody>
       </table>
-      <div class="empty-cat" id="quotesEmpty">目前尚未儲存任何報價單。填好報價單後，按上方「💾 儲存報價單」即可保存，重開瀏覽器也不會遺失。</div>
+      <div class="empty-cat" id="quotesEmpty">目前尚未儲存任何報價單。填好報價單後，按上方「儲存報價單」即可保存，重開瀏覽器也不會遺失。</div>
     </div>
   </div>
 
   <div class="catalog-panel">
     <div class="catalog-head" id="catalogToggle">
       <h2>常用料號清單<span class="hint">（曾經報價過的料號會自動記錄在這裡，選取料號時會自動帶出品名與規格）</span></h2>
-      <button class="small ghost" type="button">展開 ▾</button>
+      <button class="small ghost" type="button" aria-label="展開 / 收合"><svg class="icon chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
     </div>
     <div class="catalog-body" id="catalogBody">
       <div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:10px; flex-wrap:wrap;">
-        <button class="small primary" id="importSheetBtn" type="button">📄 匯入既有料號資料 (Excel / CSV)</button>
-        <button class="small" id="exportBtn" type="button">⬇ 匯出備份 (JSON)</button>
-        <button class="small" id="importBtn" type="button">⬆ 匯入備份 (JSON)</button>
+        <button class="small primary" id="importSheetBtn" type="button"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>匯入既有料號資料 (Excel / CSV)</button>
+        <button class="small" id="exportBtn" type="button"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>匯出備份 (JSON)</button>
+        <button class="small" id="importBtn" type="button"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>匯入備份 (JSON)</button>
         <input type="file" id="importFile" accept="application/json" style="display:none;">
         <input type="file" id="importSheetFile" accept=".csv,.xlsx,.xls" style="display:none;">
       </div>
@@ -191,7 +191,7 @@
 
   <div class="modal-overlay" id="mapModal">
     <div class="modal-box">
-      <button class="modal-close" id="mapModalClose" type="button">✕</button>
+      <button class="modal-close" id="mapModalClose" type="button" aria-label="關閉"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       <h3>對應欄位</h3>
       <div class="sub" id="mapSubtitle">請選擇你的檔案裡，哪一欄對應到料號／品名／規格／單價／成本。系統已嘗試自動判斷，請確認或手動調整。</div>
       <div class="map-grid">

@@ -433,6 +433,21 @@
   document.getElementById('addRowBtn').addEventListener('click', () => addRow());
   document.getElementById('addRowBtn2').addEventListener('click', () => addRow());
   document.getElementById('printBtn').addEventListener('click', () => window.print());
+
+  // 列印 / 另存 PDF 時，以報價單號 (與客戶) 作為預設檔名。
+  // 瀏覽器「另存 PDF」的檔名取自 document.title，故列印前暫改標題、列印後還原。
+  const BASE_TITLE = document.title;
+  function quoteFileTitle(){
+    const no = (document.getElementById('q_no').value || '').trim();
+    const cust = (document.getElementById('q_customer').value || '').trim();
+    let name = '報價單';
+    if(no) name += '_' + no;
+    if(cust) name += '_' + cust;
+    return name.replace(/[\/\\:*?"<>|]/g, '-'); // 移除檔名不允許的字元
+  }
+  window.addEventListener('beforeprint', () => { document.title = quoteFileTitle(); });
+  window.addEventListener('afterprint', () => { document.title = BASE_TITLE; });
+
   // 幣別變更時，重新格式化所有金額
   document.getElementById('currency').addEventListener('input', recalc);
   // 可調稅率

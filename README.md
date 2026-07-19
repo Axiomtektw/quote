@@ -20,7 +20,9 @@
 
 ## 使用方式
 
-直接以瀏覽器開啟 `報價單產生器20260717.html` 即可使用。
+線上版本：<https://axiomtektw.github.io/quote/>
+
+亦可直接以瀏覽器開啟 `index.html` 於本機使用。
 
 雲端同步與 Excel 匯入功能需要網路連線 (相依套件透過 CDN 載入)。
 

@@ -367,8 +367,17 @@
   .user-chip{display:flex; align-items:center; gap:8px;}
   .user-chip .logout-link{font-size:11px; color:var(--ink-faint); text-decoration:underline; cursor:pointer; background:none; border:none; padding:0;}
 
+  .toast{
+    position:fixed; left:50%; bottom:28px; transform:translateX(-50%) translateY(10px);
+    background:var(--ink); color:#fff; padding:10px 18px; border-radius:8px; font-size:13px;
+    box-shadow:0 6px 24px rgba(0,0,0,.25); opacity:0; pointer-events:none;
+    transition:opacity .2s ease, transform .2s ease; z-index:2000;
+  }
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+
   @media print{
     body{background:#fff; padding:0;}
+    .toast{display:none !important;}
     .toolbar, .catalog-panel, .row-del, .add-row-btn{display:none !important;}
     .sheet{box-shadow:none; border-radius:0; border:none;}
     .cost-col, .gp-col, .cost-summary, .cost-caption, .cost-flag{display:none !important;}
@@ -388,6 +397,7 @@
   <div class="toolbar">
     <div class="left">
       <button class="primary" id="addRowBtn">＋ 新增項目</button>
+      <button id="saveQuoteBtn">💾 儲存報價單</button>
       <button id="printBtn">🖨 列印 / 另存 PDF</button>
       <button class="ghost" id="newQuoteBtn">重新開始一張報價單</button>
     </div>
@@ -522,6 +532,20 @@
         <div class="cap">AXIOMTEK CO., LTD.</div>
         <div class="stamp">公司<br>大小章<br>蓋印處</div>
       </div>
+    </div>
+  </div>
+
+  <div class="catalog-panel">
+    <div class="catalog-head" id="quotesToggle">
+      <h2>已存報價單<span class="hint">（按上方「儲存報價單」保存目前這張，之後可在這裡開啟、複製或刪除）</span></h2>
+      <button class="small ghost" type="button">展開 ▾</button>
+    </div>
+    <div class="catalog-body" id="quotesBody">
+      <table class="catalog">
+        <thead><tr><th style="width:150px;">報價單號</th><th style="width:160px;">客戶</th><th style="width:110px;">日期</th><th style="width:120px; text-align:right;">總計</th><th style="width:130px;">儲存時間</th><th style="width:150px;"></th></tr></thead>
+        <tbody id="quotesTableBody"></tbody>
+      </table>
+      <div class="empty-cat" id="quotesEmpty">目前尚未儲存任何報價單。填好報價單後，按上方「💾 儲存報價單」即可保存，重開瀏覽器也不會遺失。</div>
     </div>
   </div>
 
@@ -1209,12 +1233,108 @@
     btn.textContent = body.classList.contains('open') ? '收合 ▴' : '展開 ▾';
   });
 
+  // ---- 已存報價單：本機儲存與歷史紀錄 ----
+  const QUOTES_KEY = 'quotes:list';
+  let quotes = [];
+  const quotesTableBody = document.getElementById('quotesTableBody');
+  const quotesEmpty = document.getElementById('quotesEmpty');
+
+  function loadQuotes(){
+    try{ const raw = localStorage.getItem(QUOTES_KEY); quotes = raw ? JSON.parse(raw) : []; }
+    catch(e){ quotes = []; }
+    if(!Array.isArray(quotes)) quotes = [];
+  }
+  function persistQuotes(){
+    try{ localStorage.setItem(QUOTES_KEY, JSON.stringify(quotes)); }
+    catch(e){ console.error('無法儲存報價單清單', e); }
+    renderQuotes();
+  }
+  function quoteTotals(q){
+    let sub = 0;
+    (q.items||[]).forEach(it => { sub += (parseFloat(it.qty)||0) * (parseFloat(it.price)||0); });
+    const rate = typeof q.taxRate === 'number' ? q.taxRate : 0.05;
+    return { sub, total: sub * (1 + rate) };
+  }
+  function fmtCur(n, cur){ n = Math.round(n + Number.EPSILON); return (cur||'TWD') + ' ' + n.toLocaleString('en-US'); }
+
+  let toastTimer = null;
+  function toast(msg){
+    let el = document.getElementById('toast');
+    if(!el){ el = document.createElement('div'); el.id = 'toast'; el.className = 'toast'; document.body.appendChild(el); }
+    el.textContent = msg; el.classList.add('show');
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), 2200);
+  }
+
+  function saveCurrentQuote(){
+    const q = collectQuote();
+    const no = (q.meta.q_no||'').trim();
+    const now = Date.now();
+    const rec = no ? quotes.find(r => (((r.quote||{}).meta||{}).q_no||'').trim() === no) : null;
+    if(rec){ rec.quote = q; rec.savedAt = now; toast('已更新報價單 ' + no); }
+    else{
+      quotes.unshift({ id: now.toString(36) + Math.random().toString(36).slice(2,6), savedAt: now, quote: q });
+      toast(no ? ('已儲存報價單 ' + no) : '已儲存報價單');
+    }
+    persistQuotes();
+  }
+
+  function renderQuotes(){
+    if(!quotesTableBody) return;
+    quotesTableBody.innerHTML = '';
+    if(quotesEmpty) quotesEmpty.style.display = quotes.length ? 'none' : 'block';
+    quotes.forEach((rec, idx) => {
+      const q = rec.quote || {}; const meta = q.meta || {};
+      const t = quoteTotals(q);
+      const d = new Date(rec.savedAt || Date.now());
+      const pad = n => String(n).padStart(2,'0');
+      const savedStr = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${escapeHtml(meta.q_no || '—')}</td>
+        <td class="name-td">${escapeHtml(meta.q_customer || '—')}</td>
+        <td>${escapeHtml(meta.q_date || '—')}</td>
+        <td style="text-align:right;">${escapeHtml(fmtCur(t.total, q.currency))}</td>
+        <td style="color:var(--ink-faint); white-space:nowrap;">${savedStr}</td>
+        <td style="white-space:nowrap;">
+          <button class="small" data-open="${idx}" type="button">開啟</button>
+          <button class="small" data-dup="${idx}" type="button">複製</button>
+          <button class="small danger" data-delq="${idx}" type="button">刪除</button>
+        </td>`;
+      quotesTableBody.appendChild(tr);
+    });
+    quotesTableBody.querySelectorAll('[data-open]').forEach(b => b.addEventListener('click', () => {
+      applyQuote(JSON.parse(JSON.stringify(quotes[+b.dataset.open].quote)));
+      saveDraft(); toast('已載入報價單'); window.scrollTo({ top:0, behavior:'smooth' });
+    }));
+    quotesTableBody.querySelectorAll('[data-dup]').forEach(b => b.addEventListener('click', () => {
+      const q = JSON.parse(JSON.stringify(quotes[+b.dataset.dup].quote));
+      q.meta = q.meta || {}; q.meta.q_no = '';
+      applyQuote(q); saveDraft();
+      toast('已複製為新報價單，請設定新單號'); window.scrollTo({ top:0, behavior:'smooth' });
+    }));
+    quotesTableBody.querySelectorAll('[data-delq]').forEach(b => b.addEventListener('click', () => {
+      const i = +b.dataset.delq;
+      if(confirm('確定要刪除這張已存報價單嗎？此動作無法復原。')){ quotes.splice(i,1); persistQuotes(); }
+    }));
+  }
+
+  document.getElementById('saveQuoteBtn').addEventListener('click', saveCurrentQuote);
+  document.getElementById('quotesToggle').addEventListener('click', () => {
+    const body = document.getElementById('quotesBody');
+    const btn = document.querySelector('#quotesToggle button');
+    body.classList.toggle('open');
+    btn.textContent = body.classList.contains('open') ? '收合 ▴' : '展開 ▾';
+  });
+
   // default dates
   const today = new Date();
   const iso = d => d.toISOString().slice(0,10);
   document.getElementById('q_date').value = iso(today);
   const valid = new Date(today); valid.setDate(valid.getDate()+7);
   document.getElementById('q_valid').value = iso(valid);
+
+  loadQuotes();
+  renderQuotes();
 
   loadCatalog().then(() => {
     let draft = null;

@@ -374,6 +374,9 @@
     transition:opacity .2s ease, transform .2s ease; z-index:2000;
   }
   .toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+  .toast-error{background:#a13232;}
+  .confirm-box{max-width:420px; width:100%;}
+  .confirm-msg{font-size:13.5px; line-height:1.75; color:var(--ink); margin-bottom:20px; white-space:pre-line;}
 
   @media print{
     body{background:#fff; padding:0;}
@@ -736,7 +739,7 @@
         // 雲端還沒有資料：如果本機已經有料號，詢問是否要上傳整批過去
         const local = localLoad();
         if(local.length > 0){
-          const ok = confirm(`偵測到這台裝置本機已有 ${local.length} 筆常用料號，要一次上傳到雲端帳號「${user.email}」嗎？\n（上傳後，之後所有裝置登入同一帳號就能看到這些料號）`);
+          const ok = await confirmDialog(`偵測到這台裝置本機已有 ${local.length} 筆常用料號，要一次上傳到雲端帳號「${user.email}」嗎？\n（上傳後，之後所有裝置登入同一帳號就能看到這些料號）`, { okText: '上傳', cancelText: '先不要' });
           if(ok){
             catalog = local;
             await saveCatalog();
@@ -1067,8 +1070,8 @@
   });
   // 報價單任何欄位變動即排程自動暫存
   document.getElementById('sheet').addEventListener('input', scheduleDraftSave);
-  document.getElementById('newQuoteBtn').addEventListener('click', () => {
-    if(confirm('確定要清空目前這張報價單的品項與客戶資訊嗎？（已儲存的常用料號清單不會被刪除）')){
+  document.getElementById('newQuoteBtn').addEventListener('click', async () => {
+    if(await confirmDialog('確定要清空目前這張報價單的品項與客戶資訊嗎？（已儲存的常用料號清單不會被刪除）', { okText: '清空', danger: true })){
       document.querySelectorAll('.meta-val input').forEach(i=>i.value='');
       document.getElementById('remark').value='';
       itemsBody.innerHTML='';
@@ -1111,9 +1114,9 @@
         }
       });
       await saveCatalog();
-      alert(`匯入完成：新增 ${added} 筆，更新 ${updated} 筆。`);
+      toast(`匯入完成：新增 ${added} 筆，更新 ${updated} 筆。`);
     }catch(err){
-      alert('匯入失敗，請確認是本工具匯出的 JSON 備份檔。');
+      toast('匯入失敗，請確認是本工具匯出的 JSON 備份檔。', 'error');
     }
     e.target.value = '';
   });
@@ -1173,7 +1176,7 @@
     e.target.value = '';
     if(!file) return;
     if(typeof XLSX === 'undefined'){
-      alert('讀取套件尚未載入完成，請確認網路連線後再試一次。');
+      toast('讀取套件尚未載入完成，請確認網路連線後再試一次。', 'error');
       return;
     }
     try{
@@ -1181,7 +1184,7 @@
       const wb = XLSX.read(buf, {type:'array'});
       const sheet = wb.Sheets[wb.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(sheet, {header:1, raw:false, defval:''});
-      if(rows.length < 2){ alert('這個檔案裡沒有偵測到資料列。'); return; }
+      if(rows.length < 2){ toast('這個檔案裡沒有偵測到資料列。', 'error'); return; }
 
       const headers = rows[0];
       importedRows = rows.slice(1).filter(r => r.some(v => String(v).trim() !== ''));
@@ -1198,7 +1201,7 @@
       mapModal.classList.add('open');
     }catch(err){
       console.error(err);
-      alert('讀取檔案失敗，請確認檔案格式是否為 .csv、.xlsx 或 .xls。');
+      toast('讀取檔案失敗，請確認檔案格式是否為 .csv、.xlsx 或 .xls。', 'error');
     }
   });
 
@@ -1227,7 +1230,7 @@
 
     await saveCatalog();
     mapModal.classList.remove('open');
-    alert(`匯入完成：新增 ${added} 筆，更新 ${updated} 筆${skipped ? `，略過 ${skipped} 筆（缺少料號/品名/規格）` : ''}。`);
+    toast(`匯入完成：新增 ${added} 筆，更新 ${updated} 筆${skipped ? `，略過 ${skipped} 筆（缺少料號/品名/規格）` : ''}。`);
   });
 
   document.getElementById('catalogToggle').addEventListener('click', () => {
@@ -1302,11 +1305,54 @@
   function fmtCur(n, cur){ n = Math.round(n + Number.EPSILON); return (cur||'TWD') + ' ' + n.toLocaleString('en-US'); }
 
   let toastTimer = null;
-  function toast(msg){
+  function toast(msg, type){
     let el = document.getElementById('toast');
-    if(!el){ el = document.createElement('div'); el.id = 'toast'; el.className = 'toast'; document.body.appendChild(el); }
-    el.textContent = msg; el.classList.add('show');
-    clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), 2200);
+    if(!el){ el = document.createElement('div'); el.id = 'toast'; document.body.appendChild(el); }
+    el.className = 'toast' + (type === 'error' ? ' toast-error' : '');
+    el.textContent = msg;
+    void el.offsetWidth; // 強制 reflow，讓重複觸發也能重新播放動畫
+    el.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove('show'), type === 'error' ? 3600 : 2200);
+  }
+
+  // 取代瀏覽器原生 confirm()，回傳 Promise<boolean>
+  function confirmDialog(message, opts){
+    opts = opts || {};
+    return new Promise(resolve => {
+      const overlay = document.createElement('div');
+      overlay.className = 'modal-overlay open';
+      const box = document.createElement('div');
+      box.className = 'modal-box confirm-box';
+      const msg = document.createElement('div');
+      msg.className = 'confirm-msg';
+      msg.textContent = message;
+      const actions = document.createElement('div');
+      actions.className = 'modal-actions';
+      const cancel = document.createElement('button');
+      cancel.type = 'button';
+      cancel.textContent = opts.cancelText || '取消';
+      const ok = document.createElement('button');
+      ok.type = 'button';
+      ok.className = opts.danger ? 'danger' : 'primary';
+      ok.textContent = opts.okText || '確定';
+      actions.appendChild(cancel);
+      actions.appendChild(ok);
+      box.appendChild(msg);
+      box.appendChild(actions);
+      overlay.appendChild(box);
+      document.body.appendChild(overlay);
+      const done = (val) => { document.removeEventListener('keydown', onKey); overlay.remove(); resolve(val); };
+      const onKey = (e) => {
+        if(e.key === 'Escape') done(false);
+        else if(e.key === 'Enter') done(true);
+      };
+      ok.addEventListener('click', () => done(true));
+      cancel.addEventListener('click', () => done(false));
+      overlay.addEventListener('click', (e) => { if(e.target === overlay) done(false); });
+      document.addEventListener('keydown', onKey);
+      ok.focus();
+    });
   }
 
   function saveCurrentQuote(){
@@ -1356,9 +1402,9 @@
       applyQuote(q); saveDraft();
       toast('已複製為新報價單，請設定新單號'); window.scrollTo({ top:0, behavior:'smooth' });
     }));
-    quotesTableBody.querySelectorAll('[data-delq]').forEach(b => b.addEventListener('click', () => {
+    quotesTableBody.querySelectorAll('[data-delq]').forEach(b => b.addEventListener('click', async () => {
       const i = +b.dataset.delq;
-      if(confirm('確定要刪除這張已存報價單嗎？此動作無法復原。')){ quotes.splice(i,1); persistQuotes(); }
+      if(await confirmDialog('確定要刪除這張已存報價單嗎？此動作無法復原。', { okText: '刪除', danger: true })){ quotes.splice(i,1); persistQuotes(); }
     }));
   }
 

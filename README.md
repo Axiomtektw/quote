@@ -38,6 +38,16 @@
 - 資料儲存：未登入使用 `localStorage`；登入後使用 Firestore。
 - Firestore 安全性規則見 [`firestore.rules`](firestore.rules)，每位使用者僅能存取自己 uid 底下的資料。
 
+## 開發
+
+自動快取破除：`.githooks/pre-commit` 會在每次 commit 時，以 `app.js` / `styles.css` 的內容雜湊標記 `index.html` 的引用 (例如 `app.js?v=1a2b3c4d`)，內容一變雜湊即變，瀏覽器便會重新下載，避免使用者看到舊版快取。
+
+**每個 clone 首次啟用一次**：
+
+```
+git config core.hooksPath .githooks
+```
+
 ## 待辦 / 已知事項
 
 - 報價單雲端同步需先於 Firebase 套用 [`firestore.rules`](firestore.rules)，使規則涵蓋 `users/{uid}/quotes`。

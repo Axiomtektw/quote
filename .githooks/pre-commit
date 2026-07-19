@@ -1,0 +1,29 @@
+#!/bin/sh
+# 自動快取破除 (cache busting)
+# 每次 commit 時，以 app.js / styles.css 的內容雜湊標記 index.html 中的引用，
+# 例如 <script src="app.js?v=1a2b3c4d">。檔案內容一變、雜湊即變，
+# 瀏覽器就會重新下載，避免使用者看到舊版快取。
+#
+# 首次啟用 (每個 clone 執行一次)：
+#   git config core.hooksPath .githooks
+
+root=$(git rev-parse --show-toplevel) || exit 0
+cd "$root" || exit 0
+[ -f index.html ] || exit 0
+
+hash8() {
+  if command -v shasum >/dev/null 2>&1; then
+    shasum -a 1 "$1" | cut -c1-8
+  else
+    sha1sum "$1" | cut -c1-8
+  fi
+}
+
+[ -f app.js ]     && appv=$(hash8 app.js)
+[ -f styles.css ] && cssv=$(hash8 styles.css)
+
+[ -n "$appv" ] && perl -0pi -e "s/app\\.js(\\?v=[0-9a-f]+)?/app.js?v=$appv/g" index.html
+[ -n "$cssv" ] && perl -0pi -e "s/styles\\.css(\\?v=[0-9a-f]+)?/styles.css?v=$cssv/g" index.html
+
+git add index.html
+exit 0

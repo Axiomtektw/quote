@@ -1,0 +1,18 @@
+rules_version = '2';
+
+// Axiomtek 報價單產生器 — Firestore 安全性規則
+//
+// 每位登入使用者只能讀寫自己 uid 底下的所有資料，
+// 涵蓋常用料號清單 (users/{uid}/catalog/main) 與
+// 報價單歷史 (users/{uid}/quotes/main)。
+//
+// 套用方式（擇一）：
+//   1. Firebase Console → Firestore Database → Rules，貼上本檔內容後發佈。
+//   2. Firebase CLI：`firebase deploy --only firestore:rules`
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{uid}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+  }
+}

@@ -2,7 +2,7 @@
 
 艾訊 (AXIOMTEK) 業務用的網頁版報價單產生器。在瀏覽器中直接填寫、計算並列印 / 另存 PDF 的報價單，同時維護一份可跨裝置同步的「常用料號清單」。
 
-目前為單一 HTML 檔的雛形版本，所有 HTML / CSS / JavaScript 皆內嵌於同一個檔案中。
+程式由三個檔案組成：`index.html`（結構）、`styles.css`（樣式）、`app.js`（邏輯），無需建置流程，可直接於瀏覽器開啟。
 
 ## 功能
 
@@ -32,7 +32,7 @@
 
 ## 技術
 
-- 單一 HTML 檔，無需建置流程。
+- 純靜態網頁 (`index.html` + `styles.css` + `app.js`)，無需建置流程。
 - [SheetJS (xlsx)](https://sheetjs.com/) — Excel / CSV 讀取。
 - [Firebase](https://firebase.google.com/) (Auth + Firestore) — 帳號登入與雲端同步。
 - 資料儲存：未登入使用 `localStorage`；登入後使用 Firestore。

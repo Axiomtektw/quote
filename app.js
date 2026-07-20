@@ -143,6 +143,187 @@
     if(cloudUnsub){ cloudUnsub(); cloudUnsub = null; }
   }
 
+  // ---- 客戶資料 / 業務資料：記憶聯絡窗口，依名稱自動帶出，登入後跨裝置同步 ----
+  // 與報價單歷史 (quotes) 採同一種模式：單一 Firestore 文件存放整份陣列，
+  // 未登入時退回本機 localStorage，不佔用常用料號清單的同步狀態指示。
+  const CUSTOMERS_KEY = 'customers:list';
+  const SALES_KEY = 'sales:list';
+  let customers = [];
+  let salesReps = [];
+  let customersUnsub = null;
+  let salesUnsub = null;
+  const customerListEl = document.getElementById('customerList');
+  const salesListEl = document.getElementById('salesList');
+
+  function loadCustomersLocal(){
+    try{ const raw = localStorage.getItem(CUSTOMERS_KEY); const a = raw ? JSON.parse(raw) : []; return Array.isArray(a) ? a : []; }
+    catch(e){ return []; }
+  }
+  function loadCustomers(){ customers = loadCustomersLocal(); }
+  function saveCustomersLocal(){
+    try{ localStorage.setItem(CUSTOMERS_KEY, JSON.stringify(customers)); }
+    catch(e){ console.error('無法儲存客戶清單', e); }
+  }
+  async function persistCustomersCloud(){
+    await db.collection('users').doc(currentUser.uid).collection('customers').doc('main')
+      .set({ items: customers, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+  }
+  function persistCustomers(){
+    if(currentUser && db){
+      persistCustomersCloud().catch(e => {
+        console.error('客戶清單雲端儲存失敗，改存本機', e);
+        saveCustomersLocal();
+      });
+      renderCustomerDatalist();
+    }else{
+      saveCustomersLocal();
+      renderCustomerDatalist();
+    }
+  }
+  function attachCustomerSync(user){
+    if(customersUnsub) customersUnsub();
+    const ref = db.collection('users').doc(user.uid).collection('customers').doc('main');
+    customersUnsub = ref.onSnapshot(async (snap) => {
+      if(snap.exists && Array.isArray(snap.data().items)){
+        customers = snap.data().items;
+        renderCustomerDatalist();
+      }else{
+        const local = loadCustomersLocal();
+        if(local.length > 0){ customers = local; await persistCustomersCloud().catch(e => console.error(e)); return; }
+        customers = [];
+        renderCustomerDatalist();
+      }
+    }, (err) => {
+      console.error('客戶清單雲端同步錯誤', err);
+      loadCustomers(); renderCustomerDatalist();
+    });
+  }
+  function detachCustomerSync(){ if(customersUnsub){ customersUnsub(); customersUnsub = null; } }
+
+  function loadSalesLocal(){
+    try{ const raw = localStorage.getItem(SALES_KEY); const a = raw ? JSON.parse(raw) : []; return Array.isArray(a) ? a : []; }
+    catch(e){ return []; }
+  }
+  function loadSales(){ salesReps = loadSalesLocal(); }
+  function saveSalesLocal(){
+    try{ localStorage.setItem(SALES_KEY, JSON.stringify(salesReps)); }
+    catch(e){ console.error('無法儲存業務清單', e); }
+  }
+  async function persistSalesCloud(){
+    await db.collection('users').doc(currentUser.uid).collection('salesreps').doc('main')
+      .set({ items: salesReps, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+  }
+  function persistSales(){
+    if(currentUser && db){
+      persistSalesCloud().catch(e => {
+        console.error('業務清單雲端儲存失敗，改存本機', e);
+        saveSalesLocal();
+      });
+      renderSalesDatalist();
+    }else{
+      saveSalesLocal();
+      renderSalesDatalist();
+    }
+  }
+  function attachSalesSync(user){
+    if(salesUnsub) salesUnsub();
+    const ref = db.collection('users').doc(user.uid).collection('salesreps').doc('main');
+    salesUnsub = ref.onSnapshot(async (snap) => {
+      if(snap.exists && Array.isArray(snap.data().items)){
+        salesReps = snap.data().items;
+        renderSalesDatalist();
+      }else{
+        const local = loadSalesLocal();
+        if(local.length > 0){ salesReps = local; await persistSalesCloud().catch(e => console.error(e)); return; }
+        salesReps = [];
+        renderSalesDatalist();
+      }
+    }, (err) => {
+      console.error('業務清單雲端同步錯誤', err);
+      loadSales(); renderSalesDatalist();
+    });
+  }
+  function detachSalesSync(){ if(salesUnsub){ salesUnsub(); salesUnsub = null; } }
+
+  function renderCustomerDatalist(){
+    customerListEl.innerHTML = '';
+    customers.forEach(c => {
+      const opt = document.createElement('option'); opt.value = c.name; customerListEl.appendChild(opt);
+    });
+  }
+  function renderSalesDatalist(){
+    salesListEl.innerHTML = '';
+    salesReps.forEach(s => {
+      const opt = document.createElement('option'); opt.value = s.name; salesListEl.appendChild(opt);
+    });
+  }
+
+  function upsertCustomer(name, contact, tel, email){
+    name = (name||'').trim();
+    if(!name) return false;
+    const existing = customers.find(c => c.name === name);
+    if(existing){
+      let changed = false;
+      if(contact && existing.contact !== contact){ existing.contact = contact; changed = true; }
+      if(tel && existing.tel !== tel){ existing.tel = tel; changed = true; }
+      if(email && existing.email !== email){ existing.email = email; changed = true; }
+      return changed;
+    }
+    customers.push({ name, contact: contact||'', tel: tel||'', email: email||'' });
+    return true;
+  }
+
+  function upsertSalesRep(name, tel, email){
+    name = (name||'').trim();
+    if(!name) return false;
+    const existing = salesReps.find(s => s.name === name);
+    if(existing){
+      let changed = false;
+      if(tel && existing.tel !== tel){ existing.tel = tel; changed = true; }
+      if(email && existing.email !== email){ existing.email = email; changed = true; }
+      return changed;
+    }
+    salesReps.push({ name, tel: tel||'', email: email||'' });
+    return true;
+  }
+
+  const q_customer = document.getElementById('q_customer');
+  const q_contact = document.getElementById('q_contact');
+  const q_contact_tel = document.getElementById('q_contact_tel');
+  const q_contact_email = document.getElementById('q_contact_email');
+  const q_sales = document.getElementById('q_sales');
+  const q_sales_tel = document.getElementById('q_sales_tel');
+  const q_sales_email = document.getElementById('q_sales_email');
+
+  function autofillCustomer(){
+    const match = customers.find(c => c.name === q_customer.value.trim());
+    if(match){
+      if(!q_contact.value && match.contact) q_contact.value = match.contact;
+      if(!q_contact_tel.value && match.tel) q_contact_tel.value = match.tel;
+      if(!q_contact_email.value && match.email) q_contact_email.value = match.email;
+    }
+  }
+  function maybeSaveCustomer(){
+    const changed = upsertCustomer(q_customer.value, q_contact.value.trim(), q_contact_tel.value.trim(), q_contact_email.value.trim());
+    if(changed) persistCustomers();
+  }
+  q_customer.addEventListener('change', () => { autofillCustomer(); maybeSaveCustomer(); });
+  [q_contact, q_contact_tel, q_contact_email].forEach(el => el.addEventListener('change', maybeSaveCustomer));
+
+  function autofillSalesRep(){
+    const match = salesReps.find(s => s.name === q_sales.value.trim());
+    if(match){
+      if(!q_sales_tel.value && match.tel) q_sales_tel.value = match.tel;
+      if(!q_sales_email.value && match.email) q_sales_email.value = match.email;
+    }
+  }
+  function maybeSaveSalesRep(){
+    const changed = upsertSalesRep(q_sales.value, q_sales_tel.value.trim(), q_sales_email.value.trim());
+    if(changed) persistSales();
+  }
+  q_sales.addEventListener('change', () => { autofillSalesRep(); maybeSaveSalesRep(); });
+  [q_sales_tel, q_sales_email].forEach(el => el.addEventListener('change', maybeSaveSalesRep));
+
   function showLoginModal(){
     if(skippedLogin) return;
     loginModal.classList.add('open');
@@ -160,15 +341,21 @@
         userEmailLabel.textContent = user.email;
         attachCloudSync(user);
         attachQuotesSync(user);
+        attachCustomerSync(user);
+        attachSalesSync(user);
       }else{
         userChip.style.display = 'none';
         detachCloudSync();
         detachQuotesSync();
+        detachCustomerSync();
+        detachSalesSync();
         setSyncBadge('offline', '尚未登入（僅本機儲存）');
         catalog = localLoad();
         renderCatalog();
         loadQuotes();
         renderQuotes();
+        loadCustomers(); renderCustomerDatalist();
+        loadSales(); renderSalesDatalist();
         showLoginModal();
       }
     });
@@ -308,6 +495,18 @@
       }
     }
 
+    // 料號與規格敘述一一對應，反過來輸入規格敘述時也能帶出料號、品名
+    function autofillFromSpec(){
+      const match = catalog.find(c => c.spec === specInput.value.trim());
+      if(match){
+        codeInput.value = match.code;
+        nameInput.value = match.name;
+        if(!priceInput.value && match.price) priceInput.value = match.price;
+        if(!costInput.value && match.cost) costInput.value = match.cost;
+        recalc();
+      }
+    }
+
     async function maybeSaveToCatalog(){
       const code = codeInput.value.trim();
       const name = nameInput.value.trim();
@@ -323,7 +522,8 @@
     codeInput.addEventListener('input', autofillFromCode);
     codeInput.addEventListener('change', () => { autofillFromCode(); maybeSaveToCatalog(); });
     nameInput.addEventListener('change', maybeSaveToCatalog);
-    specInput.addEventListener('change', maybeSaveToCatalog);
+    specInput.addEventListener('input', autofillFromSpec);
+    specInput.addEventListener('change', () => { autofillFromSpec(); maybeSaveToCatalog(); });
     priceInput.addEventListener('change', maybeSaveToCatalog);
     costInput.addEventListener('change', maybeSaveToCatalog);
     [qtyInput, priceInput, costInput].forEach(el => el.addEventListener('input', recalc));
@@ -378,7 +578,7 @@
   }
 
   // ---- 目前報價單：序列化 / 還原 ----
-  const META_IDS = ['q_no','q_date','q_customer','q_valid','q_contact','q_pay','q_contact_tel','q_incoterms','q_contact_email','q_sales','q_delivery_date','q_sales_tel','q_delivery_place','q_sales_email'];
+  const META_IDS = ['q_no','q_date','q_customer','q_valid','q_contact','q_pay','q_contact_tel','q_incoterms','q_contact_email','q_sales','q_delivery_date','q_sales_tel','q_delivery_place','q_sales_email','q_change_reason'];
   const EDITABLE_BOXES = ['companyBox','noticeBox'];
 
   function collectQuote(){
@@ -472,6 +672,7 @@
       document.getElementById('remark').value='';
       itemsBody.innerHTML='';
       addRow();
+      document.getElementById('q_no').value = nextNewQuoteNo();
       saveDraft();
     }
   });
@@ -503,11 +704,9 @@
       let added = 0, updated = 0;
       imported.forEach(item => {
         if(!item.code || !item.name || !item.spec) return;
+        const existedBefore = catalog.some(c => c.code === item.code);
         const changed = upsertCatalogEntry(item.code, item.name, item.spec, item.price, item.cost);
-        if(changed){
-          const existedBefore = catalog.some(c => c.code === item.code);
-          existedBefore ? updated++ : added++;
-        }
+        if(changed) existedBefore ? updated++ : added++;
       });
       await saveCatalog();
       toast(`匯入完成：新增 ${added} 筆，更新 ${updated} 筆。`);
@@ -639,10 +838,52 @@
   // ---- 已存報價單：本機儲存與歷史紀錄 ----
   const QUOTES_KEY = 'quotes:list';
   let quotes = [];
+  let quoteSearchTerm = '';
+  const expandedQuoteGroups = new Set();
   const quotesTableBody = document.getElementById('quotesTableBody');
   const quotesEmpty = document.getElementById('quotesEmpty');
 
   let quotesUnsub = null;
+
+  // ---- 報價單號規則：AXTW + 年月日(6碼) + 當日流水號(2碼) + "-v." + 版次(2碼) ----
+  // 例：AXTW26072001-v.01（當天第 1 張，第 1 版）；修正後變成 AXTW26072001-v.02
+  function pad2(n){ return String(n).padStart(2,'0'); }
+  function todayDateCode(){
+    const d = new Date();
+    return pad2(d.getFullYear() % 100) + pad2(d.getMonth()+1) + pad2(d.getDate());
+  }
+  function baseNoOf(no){
+    const m = /^(.*)-v\.(\d+)$/.exec((no||'').trim());
+    return m ? m[1] : (no||'').trim();
+  }
+  function versionOf(no){
+    const m = /^(.*)-v\.(\d+)$/.exec((no||'').trim());
+    return m ? parseInt(m[2], 10) : 1;
+  }
+  function nextNewQuoteNo(){
+    const prefix = 'AXTW' + todayDateCode();
+    let maxSeq = 0;
+    quotes.forEach(rec => {
+      const base = baseNoOf(((rec.quote||{}).meta||{}).q_no || '');
+      if(base.startsWith(prefix) && base.length === prefix.length + 2){
+        const seq = parseInt(base.slice(prefix.length), 10);
+        if(!isNaN(seq) && seq > maxSeq) maxSeq = seq;
+      }
+    });
+    return prefix + pad2(maxSeq + 1) + '-v.01';
+  }
+  function nextRevisionNo(currentNo){
+    const base = baseNoOf(currentNo);
+    let maxVer = 0;
+    quotes.forEach(rec => {
+      const no = ((rec.quote||{}).meta||{}).q_no || '';
+      if(baseNoOf(no) === base){
+        const v = versionOf(no);
+        if(v > maxVer) maxVer = v;
+      }
+    });
+    return base + '-v.' + pad2(maxVer + 1);
+  }
 
   function loadQuotesLocal(){
     try{ const raw = localStorage.getItem(QUOTES_KEY); const a = raw ? JSON.parse(raw) : []; return Array.isArray(a) ? a : []; }
@@ -767,36 +1008,124 @@
   function renderQuotes(){
     if(!quotesTableBody) return;
     quotesTableBody.innerHTML = '';
-    if(quotesEmpty) quotesEmpty.style.display = quotes.length ? 'none' : 'block';
+    const term = quoteSearchTerm.trim().toLowerCase();
+    const pad = n => String(n).padStart(2,'0');
+    const fmtSaved = (savedAt) => {
+      const d = new Date(savedAt || Date.now());
+      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    };
+
+    // 依報價單基礎編號（不含 -v.版次）分組，同一系列的修正版本收合在一起
+    const groups = new Map();
     quotes.forEach((rec, idx) => {
-      const q = rec.quote || {}; const meta = q.meta || {};
+      const no = ((rec.quote||{}).meta||{}).q_no || '';
+      const base = baseNoOf(no) || ('__' + idx);
+      if(!groups.has(base)) groups.set(base, []);
+      groups.get(base).push({ rec, idx });
+    });
+    groups.forEach(list => list.sort((a,b) =>
+      versionOf(((b.rec.quote||{}).meta||{}).q_no) - versionOf(((a.rec.quote||{}).meta||{}).q_no)));
+
+    let groupList = Array.from(groups.entries()).map(([base, list]) => ({ base, list }));
+    groupList.sort((a,b) => (b.list[0].rec.savedAt||0) - (a.list[0].rec.savedAt||0));
+
+    if(term){
+      groupList = groupList.filter(({list}) => list.some(({rec}) =>
+        (((rec.quote||{}).meta||{}).q_customer || '').toLowerCase().includes(term)));
+    }
+
+    if(quotesEmpty){
+      quotesEmpty.style.display = groupList.length ? 'none' : 'block';
+      quotesEmpty.textContent = quotes.length === 0
+        ? '目前尚未儲存任何報價單。填好報價單後，按上方「儲存報價單」即可保存，重開瀏覽器也不會遺失。'
+        : '沒有符合搜尋條件的報價單。';
+    }
+
+    groupList.forEach(({base, list}) => {
+      const latest = list[0];
+      const q = latest.rec.quote || {}; const meta = q.meta || {};
       const t = quoteTotals(q);
-      const d = new Date(rec.savedAt || Date.now());
-      const pad = n => String(n).padStart(2,'0');
-      const savedStr = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      const hasHistory = list.length > 1;
+      const expanded = expandedQuoteGroups.has(base);
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td>${escapeHtml(meta.q_no || '—')}</td>
+        <td>${escapeHtml(meta.q_no || '—')}${hasHistory ? ` <button class="small ghost" data-hist-toggle="${escapeHtml(base)}" type="button">共${list.length}版 ${expanded?'▴':'▾'}</button>` : ''}</td>
         <td class="name-td">${escapeHtml(meta.q_customer || '—')}</td>
         <td>${escapeHtml(meta.q_date || '—')}</td>
         <td style="text-align:right;">${escapeHtml(fmtCur(t.total, q.currency))}</td>
-        <td style="color:var(--ink-faint); white-space:nowrap;">${savedStr}</td>
+        <td style="color:var(--ink-faint); white-space:nowrap;">${fmtSaved(latest.rec.savedAt)}</td>
         <td style="white-space:nowrap;">
-          <button class="small" data-open="${idx}" type="button">開啟</button>
-          <button class="small" data-dup="${idx}" type="button">複製</button>
-          <button class="small danger" data-delq="${idx}" type="button">刪除</button>
+          <button class="small" data-open="${latest.idx}" type="button">開啟</button>
+          <button class="small" data-rev="${latest.idx}" type="button">修正</button>
+          <button class="small" data-dup="${latest.idx}" type="button">複製</button>
+          <button class="small danger" data-delq="${latest.idx}" type="button">刪除</button>
         </td>`;
       quotesTableBody.appendChild(tr);
+
+      if((meta.q_change_reason||'').trim()){
+        const reasonTr = document.createElement('tr');
+        reasonTr.innerHTML = `<td></td><td colspan="5" style="color:var(--ink-faint); font-size:11px;">變更原因：${escapeHtml(meta.q_change_reason)}</td>`;
+        quotesTableBody.appendChild(reasonTr);
+      }
+
+      if(hasHistory && expanded){
+        list.slice(1).forEach(({rec, idx}) => {
+          const hq = rec.quote || {}; const hmeta = hq.meta || {};
+          const ht = quoteTotals(hq);
+          const htr = document.createElement('tr');
+          htr.innerHTML = `
+            <td style="padding-left:22px; color:var(--ink-faint);">↳ ${escapeHtml(hmeta.q_no || '—')}</td>
+            <td class="name-td" style="color:var(--ink-faint);">${escapeHtml(hmeta.q_customer || '—')}</td>
+            <td style="color:var(--ink-faint);">${escapeHtml(hmeta.q_date || '—')}</td>
+            <td style="text-align:right; color:var(--ink-faint);">${escapeHtml(fmtCur(ht.total, hq.currency))}</td>
+            <td style="color:var(--ink-faint); white-space:nowrap;">${fmtSaved(rec.savedAt)}</td>
+            <td style="white-space:nowrap;">
+              <button class="small" data-open="${idx}" type="button">開啟</button>
+              <button class="small danger" data-delq="${idx}" type="button">刪除</button>
+            </td>`;
+          quotesTableBody.appendChild(htr);
+          if(hmeta.q_change_reason){
+            const reasonTr = document.createElement('tr');
+            reasonTr.innerHTML = `<td></td><td colspan="5" style="color:var(--ink-faint); font-size:11px;">變更原因：${escapeHtml(hmeta.q_change_reason)}</td>`;
+            quotesTableBody.appendChild(reasonTr);
+          }
+        });
+      }
+    });
+
+    quotesTableBody.querySelectorAll('[data-hist-toggle]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const base = btn.getAttribute('data-hist-toggle');
+        if(expandedQuoteGroups.has(base)) expandedQuoteGroups.delete(base);
+        else expandedQuoteGroups.add(base);
+        renderQuotes();
+      });
     });
     quotesTableBody.querySelectorAll('[data-open]').forEach(b => b.addEventListener('click', () => {
       applyQuote(JSON.parse(JSON.stringify(quotes[+b.dataset.open].quote)));
       saveDraft(); toast('已載入報價單'); window.scrollTo({ top:0, behavior:'smooth' });
     }));
+    quotesTableBody.querySelectorAll('[data-rev]').forEach(b => b.addEventListener('click', () => {
+      const q = JSON.parse(JSON.stringify(quotes[+b.dataset.rev].quote));
+      q.meta = q.meta || {};
+      const newNo = nextRevisionNo(q.meta.q_no || '');
+      q.meta.q_no = newNo;
+      q.meta.q_change_reason = '';
+      applyQuote(q); saveDraft();
+      toast('已建立修正版 ' + newNo + '，請填寫「變更原因」後再次儲存');
+      window.scrollTo({ top:0, behavior:'smooth' });
+      const reasonEl = document.getElementById('q_change_reason');
+      if(reasonEl) reasonEl.focus();
+    }));
     quotesTableBody.querySelectorAll('[data-dup]').forEach(b => b.addEventListener('click', () => {
       const q = JSON.parse(JSON.stringify(quotes[+b.dataset.dup].quote));
-      q.meta = q.meta || {}; q.meta.q_no = '';
+      q.meta = q.meta || {};
+      const newNo = nextNewQuoteNo();
+      q.meta.q_no = newNo;
+      q.meta.q_change_reason = '';
       applyQuote(q); saveDraft();
-      toast('已複製為新報價單，請設定新單號'); window.scrollTo({ top:0, behavior:'smooth' });
+      toast('已複製為新報價單 ' + newNo); window.scrollTo({ top:0, behavior:'smooth' });
     }));
     quotesTableBody.querySelectorAll('[data-delq]').forEach(b => b.addEventListener('click', async () => {
       const i = +b.dataset.delq;
@@ -805,6 +1134,11 @@
   }
 
   document.getElementById('saveQuoteBtn').addEventListener('click', saveCurrentQuote);
+  const quoteSearchInput = document.getElementById('quoteSearchInput');
+  quoteSearchInput.addEventListener('input', () => {
+    quoteSearchTerm = quoteSearchInput.value;
+    renderQuotes();
+  });
   document.getElementById('quotesToggle').addEventListener('click', () => {
     const body = document.getElementById('quotesBody');
     const btn = document.querySelector('#quotesToggle button');
@@ -822,10 +1156,18 @@
   loadQuotes();
   renderQuotes();
 
+  loadCustomers(); renderCustomerDatalist();
+  loadSales(); renderSalesDatalist();
+
   loadCatalog().then(() => {
     let draft = null;
     try{ const raw = localStorage.getItem(DRAFT_KEY); if(raw) draft = JSON.parse(raw); }catch(e){}
-    if(draft && !isQuoteEmpty(draft)) applyQuote(draft);
-    else addRow();
+    if(draft && !isQuoteEmpty(draft)){
+      applyQuote(draft);
+    }else{
+      addRow();
+      document.getElementById('q_no').value = nextNewQuoteNo();
+      saveDraft();
+    }
   });
 })();

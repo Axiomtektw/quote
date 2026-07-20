@@ -6,7 +6,7 @@
 <title>報價單產生器</title>
 <link rel="apple-touch-icon" href="favicon.png">
 <link rel="icon" type="image/png" href="favicon.png">
-<link rel="stylesheet" href="styles.css?v=ae40575a">
+<link rel="stylesheet" href="styles.css?v=fe93c446">
 </head>
 <body>
 
@@ -49,11 +49,11 @@
     <div class="meta">
       <table>
         <tr>
-          <td class="meta-label">報價單號</td><td class="meta-val"><input id="q_no" placeholder="CTOSxxxxxxxx-v.01"></td>
+          <td class="meta-label">報價單號</td><td class="meta-val"><input id="q_no" readonly style="background:var(--label-bg); color:var(--ink-soft);" title="系統自動編號：AXTW+年月日+當日流水號-v.版次，按「修正」建立新版次、按「複製」建立新單號"></td>
           <td class="meta-label">報價日期</td><td class="meta-val"><input id="q_date" type="date"></td>
         </tr>
         <tr>
-          <td class="meta-label">客戶名稱</td><td class="meta-val"><input id="q_customer" placeholder="客戶公司名稱"></td>
+          <td class="meta-label">客戶名稱</td><td class="meta-val"><input id="q_customer" list="customerList" placeholder="客戶公司名稱"></td>
           <td class="meta-label">有效日期</td><td class="meta-val"><input id="q_valid" type="date"></td>
         </tr>
         <tr>
@@ -66,7 +66,7 @@
         </tr>
         <tr>
           <td class="meta-label">E-mail</td><td class="meta-val"><input id="q_contact_email" placeholder="客戶信箱"></td>
-          <td class="meta-label">業務窗口</td><td class="meta-val"><input id="q_sales" placeholder="業務姓名"></td>
+          <td class="meta-label">業務窗口</td><td class="meta-val"><input id="q_sales" list="salesList" placeholder="業務姓名"></td>
         </tr>
         <tr>
           <td class="meta-label">交貨日期</td><td class="meta-val"><input id="q_delivery_date" placeholder="交貨日期／天數"></td>
@@ -75,6 +75,9 @@
         <tr>
           <td class="meta-label">交貨地點</td><td class="meta-val"><input id="q_delivery_place" placeholder="交貨地點"></td>
           <td class="meta-label">E-mail</td><td class="meta-val"><input id="q_sales_email" placeholder="業務信箱"></td>
+        </tr>
+        <tr>
+          <td class="meta-label">變更原因</td><td class="meta-val" colspan="3"><input id="q_change_reason" placeholder="修正版次（v.02 以上）才需要填寫，說明本次異動原因"></td>
         </tr>
       </table>
     </div>
@@ -113,6 +116,8 @@
       <datalist id="partnoList"></datalist>
       <datalist id="nameList"></datalist>
       <datalist id="specList"></datalist>
+      <datalist id="customerList"></datalist>
+      <datalist id="salesList"></datalist>
       <button class="add-row-btn" id="addRowBtn2"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>新增項目</button>
     </div>
 
@@ -157,6 +162,9 @@
       <button class="small ghost" type="button" aria-label="展開 / 收合"><svg class="icon chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
     </div>
     <div class="catalog-body" id="quotesBody">
+      <div style="margin-bottom:10px;">
+        <input type="text" id="quoteSearchInput" placeholder="依客戶名稱搜尋…" style="width:240px; padding:7px 10px; font-size:12.5px; border:1px solid var(--line); border-radius:6px; font-family:var(--font-ui); outline:none;">
+      </div>
       <table class="catalog">
         <thead><tr><th style="width:150px;">報價單號</th><th style="width:160px;">客戶</th><th style="width:110px;">日期</th><th style="width:120px; text-align:right;">總計</th><th style="width:130px;">儲存時間</th><th style="width:150px;"></th></tr></thead>
         <tbody id="quotesTableBody"></tbody>
@@ -235,6 +243,6 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 
-<script src="app.js?v=9c663ef2"></script>
+<script src="app.js?v=a248a931"></script>
 </body>
 </html>

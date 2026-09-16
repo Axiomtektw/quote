@@ -845,23 +845,23 @@
 
   let quotesUnsub = null;
 
-  // ---- 報價單號規則：AXTW + 年月日(6碼) + 當日流水號(2碼) + "-v." + 版次(2碼) ----
-  // 例：AXTW26072001-v.01（當天第 1 張，第 1 版）；修正後變成 AXTW26072001-v.02
+  // ---- 報價單號規則：AX + 年月日(6碼) + 當日流水號(2碼) + "_V" + 版次(2碼) ----
+  // 例：AX26072001_V01（當天第 1 張，第 1 版）；修正後變成 AX26072001_V02
   function pad2(n){ return String(n).padStart(2,'0'); }
   function todayDateCode(){
     const d = new Date();
     return pad2(d.getFullYear() % 100) + pad2(d.getMonth()+1) + pad2(d.getDate());
   }
   function baseNoOf(no){
-    const m = /^(.*)-v\.(\d+)$/.exec((no||'').trim());
+    const m = /^(.*)_V(\d+)$/.exec((no||'').trim());
     return m ? m[1] : (no||'').trim();
   }
   function versionOf(no){
-    const m = /^(.*)-v\.(\d+)$/.exec((no||'').trim());
+    const m = /^(.*)_V(\d+)$/.exec((no||'').trim());
     return m ? parseInt(m[2], 10) : 1;
   }
   function nextNewQuoteNo(){
-    const prefix = 'AXTW' + todayDateCode();
+    const prefix = 'AX' + todayDateCode();
     let maxSeq = 0;
     quotes.forEach(rec => {
       const base = baseNoOf(((rec.quote||{}).meta||{}).q_no || '');
@@ -870,7 +870,7 @@
         if(!isNaN(seq) && seq > maxSeq) maxSeq = seq;
       }
     });
-    return prefix + pad2(maxSeq + 1) + '-v.01';
+    return prefix + pad2(maxSeq + 1) + '_V01';
   }
   function nextRevisionNo(currentNo){
     const base = baseNoOf(currentNo);
@@ -882,7 +882,7 @@
         if(v > maxVer) maxVer = v;
       }
     });
-    return base + '-v.' + pad2(maxVer + 1);
+    return base + '_V' + pad2(maxVer + 1);
   }
 
   function loadQuotesLocal(){
@@ -1015,7 +1015,7 @@
       return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
     };
 
-    // 依報價單基礎編號（不含 -v.版次）分組，同一系列的修正版本收合在一起
+    // 依報價單基礎編號（不含 _V版次）分組，同一系列的修正版本收合在一起
     const groups = new Map();
     quotes.forEach((rec, idx) => {
       const no = ((rec.quote||{}).meta||{}).q_no || '';
